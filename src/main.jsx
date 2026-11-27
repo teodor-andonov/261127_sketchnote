@@ -1,6 +1,6 @@
-import React,{useState,useRef,useCallback,useEffect,useLayoutEffect} from 'react';
+import React,{useState,useRef,useCallback,useEffect,useMemo} from 'react';
 import {createRoot} from 'react-dom/client';
-import {Pencil,Minus,Square,Circle,Eraser,Undo2,Redo2,FilePlus,FolderOpen,Save,SaveAll,ImagePlus,Clipboard,Trash2,Settings,Command,Check,X,Folder,PaintBucket,SunMoon,PanelLeftClose,PanelLeftOpen,Grip,Search,Contrast,PanelsTopLeft,PanelTop,EyeOff,ChevronUp,ChevronDown} from 'lucide-react';
+import {Pencil,Minus,Square,Circle,Eraser,Undo2,Redo2,FilePlus,FolderOpen,Save,SaveAll,ImagePlus,Clipboard,Trash2,Settings,Command,Check,X,Folder,PaintBucket,SunMoon,PanelLeftClose,PanelLeftOpen,Grip,Search,Contrast,PanelsTopLeft,PanelTop,EyeOff,ChevronUp,ChevronDown,ArrowDownWideNarrow,ArrowUpNarrowWide,RefreshCw} from 'lucide-react';
 import {CanvasHost} from './ui/components/CanvasHost';
 import {useToolBindings} from './ui/hooks/useToolBindings';
 import {usePasteController} from './ui/hooks/usePasteController';
@@ -11,11 +11,12 @@ import {normalizeLayout,positions,nextMode,uiModes,zoomModes,gridModes} from './
 import {FloatingPanels} from './ui/components/FloatingPanels.jsx';
 import {AppearanceControls,PresetSettings} from './ui/components/AppearanceControls.jsx';
 import {normalizeAppearance} from './appearance.js';
+import {normalizeFilePrefs,backgroundFor,initializePage,sortFiles,readFolderFiles,writeNewFile,ensureWritePermission,sortLabels} from './folder.js';
 import './style.css';
-const VERSION='1.3.1';
+const VERSION='1.4.0';
 const COMMIT=import.meta.env.VITE_COMMIT||'local';
-const basePrefs={color:'#000000',width:4,opacity:1,pressure:true,penOnly:false,fill:false,grid:'none',zoom:'fit',dark:matchMedia('(prefers-color-scheme: dark)').matches,autosave:true,delay:5,format:'webp',eraser:5,penButton:'undo',penTip:'erase',toolbarPosition:'top',sidebarPosition:'left',sidebarWidth:230,sidebarHeight:190,showFooter:true,uiMode:'full',sidebarOpen:false,invertPage:false};
-function readPrefs(){try{const saved=JSON.parse(localStorage.getItem('sketchnote.preferences')||'{}');return normalizeAppearance(normalizeLayout({...basePrefs,...saved,invertPage:saved.invertPage??saved.invertCanvas??false}))}catch{return normalizeAppearance(normalizeLayout(basePrefs))}}
+const basePrefs={color:'#000000',width:4,opacity:1,pressure:true,penOnly:false,fill:false,grid:'none',zoom:'fit',dark:matchMedia('(prefers-color-scheme: dark)').matches,autosave:true,delay:5,format:'webp',eraser:5,penButton:'undo',penTip:'erase',toolbarPosition:'top',sidebarPosition:'left',sidebarWidth:230,sidebarHeight:190,showFooter:true,uiMode:'full',sidebarOpen:false,invertPage:false,newBackground:'transparent',newBackgroundColor:'#ffffff',fileSort:'name',fileSortDirection:'asc'};
+function readPrefs(){try{const saved=JSON.parse(localStorage.getItem('sketchnote.preferences')||'{}');return normalizeFilePrefs(normalizeAppearance(normalizeLayout({...basePrefs,...saved,invertPage:saved.invertPage??saved.invertCanvas??false})))}catch{return normalizeFilePrefs(normalizeAppearance(normalizeLayout(basePrefs)))}}
 const stamp=()=> 'sketch_'+new Date().toISOString().replace(/[-:T]/g,'').slice(2,14);
 const tools=[['pen',Pencil,'Pen (D)'],['segment',Minus,'Line (L)'],['box',Square,'Rectangle (R)'],['oval',Circle,'Ellipse (O)'],['rubber',Eraser,'Eraser (E)']];
 const gridLabels={none:'None',grid:'Grid',dots:'Dots',hlines:'Lines'};
@@ -23,12 +24,13 @@ const zoomLabels={fit:'Fit',fill:'Fill',custom:'Custom'};
 const uiIcons={full:PanelsTopLeft,simplified:PanelTop,hidden:EyeOff};
 const B=({icon:Icon,label,onClick,active,disabled})=><button className={'icon '+(active?'active':'')} aria-label={label} title={label} onClick={onClick} disabled={disabled}><Icon size={17}/></button>;
 function App(){
- const [prefs,setPrefs]=useState(readPrefs),[tool,setTool]=useState('pen'),[refs,setRefs]=useState(null),[doc,setDoc]=useState(()=>({id:1,width:1200,height:800,image:null})),[name,setName]=useState(()=>stamp()+'.webp'),[dirty,setDirty]=useState(false),[busy,setBusy]=useState(false),[status,setStatus]=useState('Ready'),[historyTick,bump]=useState(0),[dialog,setDialog]=useState(null),[query,setQuery]=useState(''),[folder,setFolder]=useState(null),[folderFiles,setFolderFiles]=useState([]),[newSize,setNewSize]=useState([1200,800]);
+ const [prefs,setPrefs]=useState(readPrefs),[tool,setTool]=useState('pen'),[refs,setRefs]=useState(null),[doc,setDoc]=useState(()=>({id:1,width:1200,height:800,image:null,background:backgroundFor(prefs)})),[name,setName]=useState(()=>stamp()+formats[prefs.format].ext),[dirty,setDirty]=useState(false),[busy,setBusy]=useState(false),[status,setStatus]=useState('Ready'),[historyTick,bump]=useState(0),[dialog,setDialog]=useState(null),[query,setQuery]=useState(''),[folder,setFolder]=useState(null),[folderFiles,setFolderFiles]=useState([]),[newSize,setNewSize]=useState([1200,800]);
  const [view,setView]=useState({mode:prefs.zoom,scale:1}),[viewReset,setViewReset]=useState(0);
  const resetView=mode=>{change('zoom',mode);setViewReset(x=>x+1)};
  const cancelStroke=useCallback(()=>{const hist=h.current;if(hist)hist.ctx.putImageData(hist.current,0,0)},[]);
- const h=useRef(null),handle=useRef(null),folderRef=useRef(null),revision=useRef(0),clean=useRef(0),timer=useRef(null),saving=useRef(false),docRef=useRef(doc),readyDoc=useRef(null),openInput=useRef(null),importInput=useRef(null),alive=useRef(true),saveLatest=useRef(null),loadLatest=useRef(null),dirtyRef=useRef(false),busyRef=useRef(false);
+ const h=useRef(null),handle=useRef(null),folderRef=useRef(null),folderScan=useRef(0),revision=useRef(0),clean=useRef(0),timer=useRef(null),saving=useRef(false),docRef=useRef(doc),readyDoc=useRef(null),openInput=useRef(null),importInput=useRef(null),alive=useRef(true),saveLatest=useRef(null),loadLatest=useRef(null),dirtyRef=useRef(false),busyRef=useRef(false);
  const change=(k,v)=>setPrefs(p=>({...p,[k]:v}));
+ const sortedFiles=useMemo(()=>sortFiles(folderFiles,prefs.fileSort,prefs.fileSortDirection),[folderFiles,prefs.fileSort,prefs.fileSortDirection]);
  const sidebar=prefs.sidebarOpen,setSidebar=v=>change('sidebarOpen',v);
  const full=prefs.uiMode==='full', simplified=prefs.uiMode==='simplified';
  const cycleUI=()=>change('uiMode',nextMode(uiModes,prefs.uiMode));
@@ -44,28 +46,35 @@ function App(){
  const pen=usePenActions({canvasRefs:refs,penButtonAction:prefs.penButton,eraserTipAction:prefs.penTip,activeTool:tool,setActiveTool:setTool,onUndo:undo,onReset:clear,onSave:saveFromPen,isPaused:!!paste.pasteState||busy});
  const eraserCommit=useCallback(()=>{commit();pen.handleEraserCommit()},[commit,pen.handleEraserCommit]);
  useToolBindings({canvasRefs:refs,activeTool:tool,lineWidth:prefs.width,color:prefs.color,opacity:prefs.opacity,fillEnabled:prefs.fill,penOnlyMode:prefs.penOnly,pressureEnabled:prefs.pressure,pressureFactor:.7,eraserWidthMultiplier:prefs.eraser,eraserPreviewEnabled:true,onCommit:commit,onEraserCommit:eraserCommit,rebindToken:doc.id,isPaused:!!paste.pasteState||busy});
- useEffect(()=>{if(!refs)return;if(readyDoc.current===doc.id&&h.current?.ctx.canvas===refs.finalCanvas)return;const ctx=refs.finalCanvas.getContext('2d',{willReadFrequently:true});ctx.clearRect(0,0,doc.width,doc.height);if(doc.image)ctx.drawImage(doc.image,0,0);h.current=new TileHistory(ctx);readyDoc.current=doc.id;bump(x=>x+1)},[refs,doc]);
+ useEffect(()=>{if(!refs)return;if(readyDoc.current===doc.id&&h.current?.ctx.canvas===refs.finalCanvas)return;const ctx=refs.finalCanvas.getContext('2d',{willReadFrequently:true});initializePage(ctx,doc.width,doc.height,doc.background);if(doc.image)ctx.drawImage(doc.image,0,0);h.current=new TileHistory(ctx);readyDoc.current=doc.id;bump(x=>x+1)},[refs,doc]);
  const allowReplace=()=>!busyRef.current&&!saving.current&&(!dirtyRef.current||confirm('Discard unsaved changes?'));
- const installDoc=(image,fileName,fileHandle,width,height)=>{clearTimeout(timer.current);paste.cancelPaste();handle.current=fileHandle;revision.current=0;clean.current=0;dirtyRef.current=false;setDirty(false);setName(fileName);const d={id:docRef.current.id+1,width,height,image};docRef.current=d;setDoc(d);setStatus(fileHandle?'Opened local file':'Ready');setDialog(null)};
+ const installDoc=(image,fileName,fileHandle,width,height,background=null)=>{clearTimeout(timer.current);paste.cancelPaste();handle.current=fileHandle;revision.current=0;clean.current=0;dirtyRef.current=false;setDirty(false);setName(fileName);const d={id:docRef.current.id+1,width,height,image,background};docRef.current=d;setDoc(d);setStatus(fileHandle?'Opened local file':'Ready');setDialog(null)};
  const openFile=async (f,fh=null)=>{if(!allowReplace())return;busyRef.current=true;setBusy(true);try{const image=await decode(f);if(image.naturalWidth*image.naturalHeight>40000000||Math.max(image.naturalWidth,image.naturalHeight)>16384)throw Error('Image exceeds the 40 megapixel / 16384px canvas limit');installDoc(image,f.name,fh,image.naturalWidth,image.naturalHeight)}catch(e){setStatus(String(e.message||e))}finally{busyRef.current=false;setBusy(false)}};
  loadLatest.current=async fh=>{try{await openFile(await fh.getFile(),fh)}catch(e){setStatus(String(e.message||e))}};
  const open=async()=>{if(busyRef.current||saving.current)return;try{if(window.showOpenFilePicker){const [fh]=await window.showOpenFilePicker({types:imageTypes,multiple:false});if(fh)await loadLatest.current(fh)}else openInput.current.click()}catch(e){if(e.name!=='AbortError')setStatus(e.message)}};
- const openFolder=async()=>{if(!window.showDirectoryPicker){setStatus('Folder access is unavailable in this browser');return}try{const dir=await window.showDirectoryPicker({mode:'readwrite'});folderRef.current=dir;setFolder(dir.name);setSidebar(true);await refreshFolder(dir)}catch(e){if(e.name!=='AbortError')setStatus(e.message)}};
- async function refreshFolder(dir=folderRef.current){if(!dir)return;const list=[];for await(const entry of dir.values())if(entry.kind==='file'&&/\.(webp|png|jpe?g)$/i.test(entry.name))list.push(entry);setFolderFiles(list.sort((a,b)=>a.name.localeCompare(b.name)))}
+ const openFolder=async()=>{if(busyRef.current||saving.current)return;if(!window.showDirectoryPicker){setStatus('Folder access is unavailable in this browser');return}try{const dir=await window.showDirectoryPicker({mode:'readwrite'});folderRef.current=dir;setFolder(dir.name);setFolderFiles([]);setSidebar(true);await refreshFolder(dir)}catch(e){if(e.name!=='AbortError')setStatus(e.message)}};
+ async function refreshFolder(dir=folderRef.current){
+  if(!dir)return;
+  const scan=++folderScan.current;
+  try{const list=await readFolderFiles(dir);if(scan===folderScan.current&&folderRef.current===dir)setFolderFiles(list)}
+  catch(e){if(scan===folderScan.current&&folderRef.current===dir)setStatus('Folder read failed: '+(e.message||e))}
+ }
  const save=async (as=false,automatic=false)=>{
   if(!refs||readyDoc.current!==docRef.current.id||saving.current||busyRef.current||paste.pasteState)return;
   if(automatic&&(!dirtyRef.current||!handle.current||formatOf(name)==='jpeg'))return;
   saving.current=true;
-  const rev=revision.current,old=handle.current;let target=as?null:old,format=target?formatOf(target.name):prefs.format;
+  const rev=revision.current,old=handle.current,dir=!as&&!old?folderRef.current:null;let target=as?null:old,format=target?formatOf(target.name):prefs.format;
   try{
    if(automatic&&target.queryPermission&&await target.queryPermission({mode:'readwrite'})!=='granted')return;
-   if(!automatic&&!target&&window.showSaveFilePicker){
+   if(dir)await ensureWritePermission(dir);
+   if(!automatic&&!target&&!dir&&window.showSaveFilePicker){
     target=await window.showSaveFilePicker({suggestedName:suggestName(name,format),types:[{description:format.toUpperCase(),accept:{[formats[format].mime]:[formats[format].ext]}}],...(folderRef.current?{startIn:folderRef.current}:{})});
     format=formatOf(target.name);
    }
    if(target&&!automatic&&target.requestPermission&&await target.requestPermission({mode:'readwrite'})!=='granted')throw Error('Write permission not granted');
    setStatus('Saving…');const blob=await encodeCanvas(refs.finalCanvas,format);
-   if(target){await write(target,blob);handle.current=target;setName(target.name)}
+   if(dir){target=await writeNewFile(dir,suggestName(name,format),blob,write);handle.current=target;setName(target.name)}
+   else if(target){await write(target,blob);handle.current=target;setName(target.name)}
    else{const n=suggestName(name,format);download(blob,n);setName(n)}
    if(revision.current===rev){clean.current=rev;dirtyRef.current=false;setDirty(false)}
    setStatus(target?'Saved to disk':'Image exported');if(folderRef.current)refreshFolder().catch(()=>{});
@@ -77,11 +86,33 @@ function App(){
  useEffect(()=>{const fn=e=>{if(dirtyRef.current||saving.current){e.preventDefault();e.returnValue=''}};window.addEventListener('beforeunload',fn);return()=>window.removeEventListener('beforeunload',fn)},[]);
  useEffect(()=>{if(window.launchQueue)window.launchQueue.setConsumer(async params=>{if(params.files?.length)await loadLatest.current(params.files[0])})},[]);
  const newSketch=()=>{if(!allowReplace())return;setNewSize([doc.width,doc.height]);setDialog('new')};
- const createSketch=()=>{const [w,h]=newSize.map(Number);if(!Number.isInteger(w)||!Number.isInteger(h)||w<1||h<1||w*h>40000000||Math.max(w,h)>16384){setStatus('Invalid canvas size');return}installDoc(null,stamp()+formats[prefs.format].ext,null,w,h)};
+ const createSketch=async()=>{
+  if(busyRef.current||saving.current)return;
+  const [w,h]=newSize.map(Number);
+  if(!Number.isInteger(w)||!Number.isInteger(h)||w<1||h<1||w*h>40000000||Math.max(w,h)>16384){setStatus('Invalid canvas size');return}
+  const dir=folderRef.current,format=prefs.format,fileName=stamp()+formats[format].ext,background=backgroundFor(prefs);
+  if(!dir){installDoc(null,fileName,null,w,h,background);markDirty();return}
+  busyRef.current=true;setBusy(true);setStatus('Creating sketch…');
+  try{
+   await ensureWritePermission(dir);
+   const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+   try{
+    initializePage(canvas.getContext('2d'),w,h,background);
+    const blob=await encodeCanvas(canvas,format);
+    const target=await writeNewFile(dir,fileName,blob,write);
+    installDoc(null,target.name,target,w,h,background);
+    setStatus('Created in '+dir.name);
+   }finally{canvas.width=0;canvas.height=0}
+   await refreshFolder(dir);
+  }catch(e){
+   // Preserve the new sketch as unsaved, allowing the user to retry or Save As.
+   installDoc(null,fileName,null,w,h,background);markDirty();setStatus('Could not create file: '+(e.message||e)+'. Sketch is unsaved.');
+  }finally{busyRef.current=false;setBusy(false)}
+ };
  const pasteFile=async file=>{try{paste.startPasteFromImage(await decode(file))}catch(e){setStatus(e.message)}};
  const pasteClipboard=async()=>{try{for(const item of await navigator.clipboard.read()){const type=item.types.find(t=>t.startsWith('image/'));if(type){await pasteFile(await item.getType(type));return}}setStatus('No image on clipboard')}catch{setStatus('Use Ctrl+V or Import image')}};
  useEffect(()=>{const fn=e=>{if(dialog||busy||/INPUT|TEXTAREA|SELECT/.test(e.target?.tagName||''))return;const item=[...(e.clipboardData?.items||[])].find(i=>i.type.startsWith('image/'));const file=item?.getAsFile();if(file){e.preventDefault();pasteFile(file)}};window.addEventListener('paste',fn);return()=>window.removeEventListener('paste',fn)},[paste,dialog,busy]);
- const commands=[['New sketch',newSketch,'Ctrl+N'],['Open image',open,'Ctrl+O'],['Open folder',openFolder,''],['Save',()=>save(false,false),'Ctrl+S'],['Save as',()=>save(true,false),'Ctrl+Shift+S'],['Import image',()=>importInput.current.click(),''],['Paste image',pasteClipboard,'Ctrl+V'],['Undo',undo,'Ctrl+Z'],['Redo',redo,'Ctrl+Shift+Z'],['Clear canvas',clear,''],['Grid: cycle',()=>change('grid',nextMode(gridModes,prefs.grid)),''],['Zoom: cycle',()=>resetView(nextMode(zoomModes,view.mode)),''],['Zoom: fit',()=>resetView('fit'),''],['Zoom: fill',()=>resetView('fill'),''],['Invert page',()=>change('invertPage',!prefs.invertPage),''],['Toggle theme',()=>change('dark',!prefs.dark),''],['Toggle sidebar',()=>setSidebar(!sidebar),''],['Cycle interface visibility',cycleUI,''],['Settings',()=>setDialog('settings'),''],...tools.map(([id,,label])=>[label,()=>setTool(id),''])];
+ const commands=[['New sketch',newSketch,'Ctrl+N'],['Open image',open,'Ctrl+O'],['Open folder',openFolder,''],['Refresh folder',()=>refreshFolder(),''],['Save',()=>save(false,false),'Ctrl+S'],['Save as',()=>save(true,false),'Ctrl+Shift+S'],['Import image',()=>importInput.current.click(),''],['Paste image',pasteClipboard,'Ctrl+V'],['Undo',undo,'Ctrl+Z'],['Redo',redo,'Ctrl+Shift+Z'],['Clear canvas',clear,''],['Grid: cycle',()=>change('grid',nextMode(gridModes,prefs.grid)),''],['Zoom: cycle',()=>resetView(nextMode(zoomModes,view.mode)),''],['Zoom: fit',()=>resetView('fit'),''],['Zoom: fill',()=>resetView('fill'),''],['Invert page',()=>change('invertPage',!prefs.invertPage),''],['Toggle theme',()=>change('dark',!prefs.dark),''],['Toggle sidebar',()=>setSidebar(!sidebar),''],['Cycle interface visibility',cycleUI,''],['Settings',()=>setDialog('settings'),''],...tools.map(([id,,label])=>[label,()=>setTool(id),''])];
  useEffect(()=>{const fn=e=>{const mod=e.ctrlKey||e.metaKey,key=e.key.toLowerCase();if(mod&&key==='k'){e.preventDefault();setQuery('');setDialog(x=>x==='commands'?null:'commands');return}if(e.key==='Escape'){if(dialog)setDialog(null);else paste.cancelPaste();return}if(/INPUT|TEXTAREA|SELECT/.test(e.target?.tagName||'')||dialog||busy)return;if(mod&&['s','o','n','z','y'].includes(key)){e.preventDefault();if(key==='s')save(e.shiftKey,false);if(key==='o')open();if(key==='n')newSketch();if(key==='z')(e.shiftKey?redo:undo)();if(key==='y')redo();return}if(!mod){const t={d:'pen',l:'segment',r:'box',o:'oval',e:'rubber'}[key];if(t)setTool(t);if(key==='enter'&&paste.pasteState)paste.commitPaste()}};window.addEventListener('keydown',fn);return()=>window.removeEventListener('keydown',fn)},[dialog,busy,paste,refs,prefs,name,doc]);
  return <div className={'sketchpad-app '+(prefs.showFooter?'reserve-footer':'')} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const file=e.dataTransfer.files[0];if(file?.type.startsWith('image/'))openFile(file)}}>
   <main className="canvas-stage">
@@ -110,14 +141,15 @@ function App(){
        {(full||simplified)&&<AppearanceControls prefs={prefs} change={change}/>}
      </>}
      sidebar={<><div className="sidehead"><strong title={folder||'Files'}>{folder||'Files'}</strong><B icon={FolderOpen} label="Open folder" onClick={openFolder}/><B icon={X} label="Hide sidebar" onClick={()=>setSidebar(false)}/></div>
-       <div className="file-list">{folderFiles.map(f=><button key={f.name} className={'file '+(name===f.name?'current':'')} title={f.name} onClick={()=>loadLatest.current(f)}>{f.name}</button>)}{!folder&&<p className="empty-folder">Open a local folder to browse sketches.</p>}{folder&&!folderFiles.length&&<p className="empty-folder">No sketches in this folder.</p>}</div></>}
+       {folder&&<div className="folder-sort"><select aria-label="Sort files by" title="Sort files by" value={prefs.fileSort} onChange={e=>change('fileSort',e.target.value)}>{Object.entries(sortLabels).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select><B icon={prefs.fileSortDirection==='asc'?ArrowUpNarrowWide:ArrowDownWideNarrow} label={'Sort '+(prefs.fileSortDirection==='asc'?'ascending':'descending')+' · click to reverse'} onClick={()=>change('fileSortDirection',prefs.fileSortDirection==='asc'?'desc':'asc')}/><B icon={RefreshCw} label="Refresh folder" onClick={()=>refreshFolder()}/></div>}
+       <div className="file-list">{sortedFiles.map(f=><button key={f.name} className={'file '+(name===f.name?'current':'')} title={f.name} onClick={()=>loadLatest.current(f.handle)}>{f.name}</button>)}{!folder&&<p className="empty-folder">Open a local folder to browse sketches.</p>}{folder&&!folderFiles.length&&<p className="empty-folder">No sketches in this folder.</p>}</div></>}
    />
   </main>
   {full&&prefs.showFooter&&<footer className="statusbar"><span className="status-message" role="status" title={status}>{status}</span><span className="footer-filename" title={name}>{name}{dirty?' *':''}</span><div className="spacer"/><span className="grid-status">Grid: {gridLabels[prefs.grid]}</span><span>Zoom: {zoomLabels[view.mode]} · {Math.round(view.scale*100)}%</span><span className="resolution-status">{doc.width} × {doc.height}</span><span className="history-status">{Math.round((h.current?.bytes||0)/1048576)} MB history</span><span>v{VERSION} · {COMMIT.slice(0,7)}</span></footer>}
   <input ref={openInput} hidden type="file" accept="image/png,image/webp,image/jpeg" onChange={e=>{if(e.target.files[0])openFile(e.target.files[0]);e.target.value=''}}/><input ref={importInput} hidden type="file" accept="image/*" onChange={e=>{if(e.target.files[0])pasteFile(e.target.files[0]);e.target.value=''}}/>
   {dialog&&<div className="backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setDialog(null)}}><section className="modal" role="dialog" aria-modal="true" aria-label={dialog}><div className="modalhead"><strong>{dialog==='new'?'New sketch':dialog==='settings'?'Settings':'Commands'}</strong><B icon={X} label="Close" onClick={()=>setDialog(null)}/></div>
-   {dialog==='new'&&<><label>Width <input type="number" min="1" value={newSize[0]} onChange={e=>setNewSize([e.target.value,newSize[1]])}/></label><label>Height <input type="number" min="1" value={newSize[1]} onChange={e=>setNewSize([newSize[0],e.target.value])}/></label><button onClick={createSketch}>Create sketch</button></>}
-   {dialog==='settings'&&<><h3>Interface</h3>{[['toolbarPosition','Toolbar position'],['sidebarPosition','Sidebar position']].map(([key,label])=><label key={key}>{label}<select value={prefs[key]} onChange={e=>change(key,e.target.value)}>{positions.map(pos=><option key={pos} value={pos}>{pos[0].toUpperCase()+pos.slice(1)}</option>)}</select></label>)}<label>Show status bar <input type="checkbox" checked={prefs.showFooter} onChange={e=>change('showFooter',e.target.checked)}/></label><label>Interface visibility <select value={prefs.uiMode} onChange={e=>change('uiMode',e.target.value)}>{uiModes.map(m=><option key={m} value={m}>{m[0].toUpperCase()+m.slice(1)}</option>)}</select></label><PresetSettings prefs={prefs} change={change}/><h3>Files and drawing</h3><label>Save as format <select value={prefs.format} onChange={e=>change('format',e.target.value)}><option value="webp">WebP (lossless)</option><option value="png">PNG (lossless)</option><option value="jpeg">JPEG</option></select></label><label>Autosave to opened file <input type="checkbox" checked={prefs.autosave} onChange={e=>change('autosave',e.target.checked)}/></label><label>Autosave idle seconds <input type="number" min="1" max="120" value={prefs.delay} onChange={e=>change('delay',Math.max(1,+e.target.value||5))}/></label><label>Pressure sensitivity <input type="checkbox" checked={prefs.pressure} onChange={e=>change('pressure',e.target.checked)}/></label><label>Pen only (ignore touch/mouse) <input type="checkbox" checked={prefs.penOnly} onChange={e=>change('penOnly',e.target.checked)}/></label><label>Eraser width multiplier <input type="number" min="1" max="30" value={prefs.eraser} onChange={e=>change('eraser',Math.max(1,+e.target.value||1))}/></label>{[['penButton','Pen barrel button'],['penTip','Pen eraser tip']].map(([key,label])=><label key={key}>{label}<select value={prefs[key]} onChange={e=>change(key,e.target.value)}>{['undo','erase','save','reset'].map(v=><option key={v}>{v}</option>)}</select></label>)}<small>JPEG autosave is disabled to avoid cumulative loss. Settings stay in this browser; sketches stay in your files.</small></>}
+   {dialog==='new'&&<><label>Width <input type="number" min="1" value={newSize[0]} onChange={e=>setNewSize([e.target.value,newSize[1]])}/></label><label>Height <input type="number" min="1" value={newSize[1]} onChange={e=>setNewSize([newSize[0],e.target.value])}/></label><small>{folder?'Create a new image file in '+folder+'.':'Create an unsaved sketch.'} Background: {prefs.newBackground==='transparent'?'transparent':prefs.newBackgroundColor}.</small><button onClick={createSketch} disabled={busy}>{busy?'Creating…':'Create sketch'}</button></>}
+   {dialog==='settings'&&<><h3>Interface</h3>{[['toolbarPosition','Toolbar position'],['sidebarPosition','Sidebar position']].map(([key,label])=><label key={key}>{label}<select value={prefs[key]} onChange={e=>change(key,e.target.value)}>{positions.map(pos=><option key={pos} value={pos}>{pos[0].toUpperCase()+pos.slice(1)}</option>)}</select></label>)}<label>Show status bar <input type="checkbox" checked={prefs.showFooter} onChange={e=>change('showFooter',e.target.checked)}/></label><label>Interface visibility <select value={prefs.uiMode} onChange={e=>change('uiMode',e.target.value)}>{uiModes.map(m=><option key={m} value={m}>{m[0].toUpperCase()+m.slice(1)}</option>)}</select></label><PresetSettings prefs={prefs} change={change}/><h3>Files and drawing</h3><label>Default new-page background <select value={prefs.newBackground} onChange={e=>change('newBackground',e.target.value)}><option value="transparent">Transparent</option><option value="color">Solid colour</option></select></label>{prefs.newBackground==='color'&&<label>Background colour <input type="color" value={prefs.newBackgroundColor} onChange={e=>change('newBackgroundColor',e.target.value)}/></label>}<small>Background applies to new sketches only. Solid colour is part of the saved raster; transparent pages are displayed on white. JPEG cannot store transparency.</small><label>Save as format <select value={prefs.format} onChange={e=>change('format',e.target.value)}><option value="webp">WebP (lossless)</option><option value="png">PNG (lossless)</option><option value="jpeg">JPEG</option></select></label><label>Autosave to opened file <input type="checkbox" checked={prefs.autosave} onChange={e=>change('autosave',e.target.checked)}/></label><label>Autosave idle seconds <input type="number" min="1" max="120" value={prefs.delay} onChange={e=>change('delay',Math.max(1,+e.target.value||5))}/></label><label>Pressure sensitivity <input type="checkbox" checked={prefs.pressure} onChange={e=>change('pressure',e.target.checked)}/></label><label>Pen only (ignore touch/mouse) <input type="checkbox" checked={prefs.penOnly} onChange={e=>change('penOnly',e.target.checked)}/></label><label>Eraser width multiplier <input type="number" min="1" max="30" value={prefs.eraser} onChange={e=>change('eraser',Math.max(1,+e.target.value||1))}/></label>{[['penButton','Pen barrel button'],['penTip','Pen eraser tip']].map(([key,label])=><label key={key}>{label}<select value={prefs[key]} onChange={e=>change(key,e.target.value)}>{['undo','erase','save','reset'].map(v=><option key={v}>{v}</option>)}</select></label>)}<small>JPEG autosave is disabled to avoid cumulative loss. Settings stay in this browser; sketches stay in your files.</small></>}
    {dialog==='commands'&&<><input autoFocus placeholder="Search commands…" value={query} onChange={e=>setQuery(e.target.value)}/><div className="commands">{commands.filter(c=>c[0].toLowerCase().includes(query.toLowerCase())).map(([label,fn,shortcut])=><button key={label} onClick={()=>{setDialog(null);fn()}}>{label}<small>{shortcut}</small></button>)}</div></>}
   </section></div>}
  </div>

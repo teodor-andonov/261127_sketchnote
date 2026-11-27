@@ -105,16 +105,16 @@
 
 /* Single-axis sliders and unified view group. Slider length spans three square slots. */
 .floating-toolbar input.stepped-slider{appearance:none;-webkit-appearance:none;display:block;cursor:pointer;background:transparent;border:0;padding:0 4px;width:calc(var(--control)*2 + 3px);min-width:calc(var(--control)*2 + 3px);max-width:calc(var(--control)*2 + 3px);height:var(--control);touch-action:none;accent-color:var(--text);direction:ltr}
-.floating-toolbar .stepped-slider::-webkit-slider-runnable-track{height:1px;background:var(--muted);border-radius:1px}
-.floating-toolbar .stepped-slider::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:12px;height:12px;border:1px solid var(--text);border-radius:50%;background:var(--text);margin-top:-5.5px}
-.floating-toolbar .stepped-slider::-moz-range-track{height:1px;background:var(--muted);border-radius:1px}
+.floating-toolbar .stepped-slider::-webkit-slider-runnable-track{height:3px;background:var(--muted);border-radius:999px}
+.floating-toolbar .stepped-slider::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:12px;height:12px;border:1px solid var(--text);border-radius:50%;background:var(--text);margin-top:-4.5px}
+.floating-toolbar .stepped-slider::-moz-range-track{height:3px;background:var(--muted);border-radius:999px}
 .floating-toolbar .stepped-slider::-moz-range-thumb{width:10px;height:10px;border:1px solid var(--text);border-radius:50%;background:var(--text)}
 .floating-toolbar .stepped-slider.custom-step::-webkit-slider-thumb{background:var(--panel)}
 .floating-toolbar .stepped-slider.custom-step::-moz-range-thumb{background:var(--panel)}
 .toolbar-left .floating-toolbar input.stepped-slider,.toolbar-right .floating-toolbar input.stepped-slider{writing-mode:vertical-lr;direction:ltr;padding:4px 0;width:var(--control);min-width:var(--control);max-width:var(--control);height:calc(var(--control)*2 + 3px);min-height:calc(var(--control)*2 + 3px);max-height:calc(var(--control)*2 + 3px)}
-.toolbar-left .stepped-slider::-webkit-slider-runnable-track,.toolbar-right .stepped-slider::-webkit-slider-runnable-track{width:1px;height:auto}
-.toolbar-left .stepped-slider::-webkit-slider-thumb,.toolbar-right .stepped-slider::-webkit-slider-thumb{margin-top:0;margin-left:-5.5px}
-.toolbar-left .stepped-slider::-moz-range-track,.toolbar-right .stepped-slider::-moz-range-track{width:1px;height:auto}
+.toolbar-left .stepped-slider::-webkit-slider-runnable-track,.toolbar-right .stepped-slider::-webkit-slider-runnable-track{width:3px;height:auto}
+.toolbar-left .stepped-slider::-webkit-slider-thumb,.toolbar-right .stepped-slider::-webkit-slider-thumb{margin-top:0;margin-left:-4.5px}
+.toolbar-left .stepped-slider::-moz-range-track,.toolbar-right .stepped-slider::-moz-range-track{width:3px;height:auto}
 .visibility-control.view-group{border-left:1px solid var(--line);padding-left:4px;min-width:0;max-width:55%;flex:0 1 auto}
 .view-controls{display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;gap:3px;min-width:0;min-height:0;overflow:auto;scrollbar-width:none;touch-action:none;user-select:none}
 .view-controls::-webkit-scrollbar{display:none}
@@ -125,3 +125,9 @@
 .ui-hidden .view-group,.ui-simplified .view-group{border:0;padding:0;max-width:none;max-height:none}
 .preset-numbers-editor{grid-template-columns:repeat(5,minmax(0,1fr))}
 @media(max-width:360px){.preset-numbers-editor{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+/* Stage 4: compact persistent folder sorting. */
+.folder-sort{display:flex;align-items:center;gap:3px;padding:3px 5px;border-bottom:1px solid var(--line);flex-shrink:0}
+.folder-sort select{flex:1;min-width:0;font-size:11px;color:var(--muted);border:0;background:transparent;min-height:26px}
+.folder-sort .icon{height:26px;width:26px;min-height:26px;color:var(--muted)}
+.folder-sort .icon svg{width:14px;height:14px}

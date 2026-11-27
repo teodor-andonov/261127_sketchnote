@@ -43,3 +43,7 @@ The toolbar is a centered single-row or single-column strip with uniform square 
 The single-axis toolbar has separate colour, thickness and opacity groups. Each group exposes one-click presets followed by a precise control (colour picker, pixel thickness or percentage opacity). Settings allows editing and resetting all preset groups. Numeric fields accept decimals and optional units; apply on Enter or blur, Escape cancels. Existing active drawing settings are retained when upgrading.
 
 Thickness and opacity now use five-step line sliders with adjacent precise inputs. The clear action is a reversible history operation, with a single pre-clear snapshot retained even if it exceeds the usual history budget. Toolbar groups: document/history/settings, drawing/image tools, colour, thickness, opacity, view/interface.
+
+## Folder workflow
+
+With a folder open, Create sketch writes a new image immediately and normal Save writes an untitled image into that folder without a save picker. Existing files save to their own handle; Save As always offers an explicit destination. Name collisions receive numbered suffixes. Settings controls the default transparent or solid-color raster background for new sketches. Sidebar sorting supports natural name, last modified and file size with either direction, plus a refresh button. Creation timestamps are not exposed by standard browser File objects.
