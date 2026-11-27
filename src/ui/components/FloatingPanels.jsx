@@ -1,9 +1,10 @@
 import React,{useLayoutEffect,useRef,useState} from 'react';
 import {isVertical,clampPanelSize} from '../../layout';
 import {useToolbarScroll} from '../hooks/useToolbarScroll.js';
-export function FloatingPanels({toolbarPosition,sidebarPosition,sidebarWidth,sidebarHeight,onResize,sidebarOpen,uiMode,toggle,visibility,toolbar,sidebar}){
- const toolbarRef=useRef(null),rootRef=useRef(null),dragRef=useRef(null),contentRef=useRef(null);
+export function FloatingPanels({toolbarPosition,sidebarPosition,sidebarWidth,sidebarHeight,onResize,sidebarOpen,uiMode,toggle,visibility,toolbar,viewControls,sidebar}){
+ const toolbarRef=useRef(null),rootRef=useRef(null),dragRef=useRef(null),contentRef=useRef(null),viewRef=useRef(null);
  useToolbarScroll(contentRef,isVertical(toolbarPosition),uiMode);
+ useToolbarScroll(viewRef,isVertical(toolbarPosition),uiMode);
  const [extent,setExtent]=useState({w:0,h:0}),[draft,setDraft]=useState(null);
  const vertical=isVertical(sidebarPosition),hidden=uiMode==='hidden';
  useLayoutEffect(()=>{
@@ -30,7 +31,7 @@ export function FloatingPanels({toolbarPosition,sidebarPosition,sidebarWidth,sid
  return <div ref={rootRef} className={'floating-panels ui-'+uiMode+' toolbar-'+toolbarPosition+' sidebar-'+sidebarPosition} style={style}>
   <div ref={toolbarRef} className={'floating-toolbar floating-surface '+(hidden?'only-visibility':'')} role="toolbar" aria-label="Drawing toolbar" aria-orientation={isVertical(toolbarPosition)?'vertical':'horizontal'}>
    {!hidden&&<div ref={contentRef} className="toolbar-content">{toolbar}</div>}
-   <div className="visibility-control">{uiMode==='full'&&toggle}{visibility}</div>
+   <div className="visibility-control view-group" role="group" aria-label="View and interface">{uiMode==='full'&&<><div className="view-controls" ref={viewRef}>{viewControls}</div>{toggle}</>}{visibility}</div>
   </div>
   {sidebarOpen&&<aside className="floating-sidebar floating-surface" aria-label="Files">
    {sidebar}

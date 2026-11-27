@@ -26,7 +26,21 @@ export class TileHistory {
     while(this.bytes>this.budget||this.entries.length>this.maxSteps){this.bytes-=this.entries.shift().bytes;this.index--}
     return true;
   }
-  apply(entry,key){for(const p of entry.patches){const im=p[key];this.ctx.putImageData(im,p.x,p.y);for(let r=0;r<im.height;r++){const i=((p.y+r)*this.current.width+p.x)*4;this.current.data.set(im.data.subarray(r*im.width*4,(r+1)*im.width*4),i)}}}
+  clear(){
+    // The clear operation stores the existing baseline once; redo is implicitly transparent.
+    // A large clear may exceed the normal budget, but remains immediately reversible.
+    if(!new Uint32Array(this.current.data.buffer).some(pixel=>pixel!==0))return false;
+    const before=this.current,blank=new ImageData(before.width,before.height);
+    this.ctx.putImageData(blank,0,0);this.current=blank;
+    for(const e of this.entries.splice(this.index))this.bytes-=e.bytes;
+    const bytes=before.data.byteLength;this.entries.push({kind:'clear',before,bytes});this.bytes+=bytes;this.index++;
+    while(this.entries.length>1&&(this.bytes>this.budget||this.entries.length>this.maxSteps)){this.bytes-=this.entries.shift().bytes;this.index--}
+    return true;
+  }
+  apply(entry,key){if(entry.kind==='clear'){
+    if(key==='before')this.current.data.set(entry.before.data);else this.current.data.fill(0);
+    this.ctx.putImageData(this.current,0,0);return;
+  }for(const p of entry.patches){const im=p[key];this.ctx.putImageData(im,p.x,p.y);for(let r=0;r<im.height;r++){const i=((p.y+r)*this.current.width+p.x)*4;this.current.data.set(im.data.subarray(r*im.width*4,(r+1)*im.width*4),i)}}}
   undo(){if(!this.index)return false;this.apply(this.entries[--this.index],'before');return true}
   redo(){if(this.index>=this.entries.length)return false;this.apply(this.entries[this.index++],'after');return true}
 }

@@ -12,7 +12,7 @@ import {FloatingPanels} from './ui/components/FloatingPanels.jsx';
 import {AppearanceControls,PresetSettings} from './ui/components/AppearanceControls.jsx';
 import {normalizeAppearance} from './appearance.js';
 import './style.css';
-const VERSION='1.3.0';
+const VERSION='1.3.1';
 const COMMIT=import.meta.env.VITE_COMMIT||'local';
 const basePrefs={color:'#000000',width:4,opacity:1,pressure:true,penOnly:false,fill:false,grid:'none',zoom:'fit',dark:matchMedia('(prefers-color-scheme: dark)').matches,autosave:true,delay:5,format:'webp',eraser:5,penButton:'undo',penTip:'erase',toolbarPosition:'top',sidebarPosition:'left',sidebarWidth:230,sidebarHeight:190,showFooter:true,uiMode:'full',sidebarOpen:false,invertPage:false};
 function readPrefs(){try{const saved=JSON.parse(localStorage.getItem('sketchnote.preferences')||'{}');return normalizeAppearance(normalizeLayout({...basePrefs,...saved,invertPage:saved.invertPage??saved.invertCanvas??false}))}catch{return normalizeAppearance(normalizeLayout(basePrefs))}}
@@ -39,7 +39,7 @@ function App(){
  const paste=usePasteController({canvasRefs:refs,canvasSize:doc,isPaused:busy,onCommit:commit});
  const undo=useCallback(()=>{if(h.current?.undo())markDirty()},[markDirty]);
  const redo=useCallback(()=>{if(h.current?.redo())markDirty()},[markDirty]);
- const clear=useCallback(()=>{if(!refs||busyRef.current)return;if(!confirm('Clear the entire sketch?'))return;refs.finalCanvas.getContext('2d').clearRect(0,0,refs.finalCanvas.width,refs.finalCanvas.height);commit()},[refs,commit]);
+ const clear=useCallback(()=>{if(!refs||busyRef.current||readyDoc.current!==docRef.current.id)return;paste.cancelPaste();if(h.current?.clear())markDirty()},[refs,paste.cancelPaste,markDirty]);
  const saveFromPen=useCallback(()=>saveLatest.current?.(false,false),[]);
  const pen=usePenActions({canvasRefs:refs,penButtonAction:prefs.penButton,eraserTipAction:prefs.penTip,activeTool:tool,setActiveTool:setTool,onUndo:undo,onReset:clear,onSave:saveFromPen,isPaused:!!paste.pasteState||busy});
  const eraserCommit=useCallback(()=>{commit();pen.handleEraserCommit()},[commit,pen.handleEraserCommit]);
@@ -91,21 +91,23 @@ function App(){
      sidebarOpen={full&&sidebar} uiMode={prefs.uiMode}
      toggle={<B icon={sidebar?PanelLeftClose:PanelLeftOpen} label={sidebar?'Hide sidebar':'Show sidebar'} onClick={()=>setSidebar(!sidebar)}/>}
      visibility={<B icon={uiIcons[prefs.uiMode]} label={'Interface: '+prefs.uiMode+' · click to cycle'} onClick={cycleUI}/>}
+     viewControls={full&&<>
+       <B icon={Grip} label={'Grid: '+gridLabels[prefs.grid]+' · click to cycle'} onClick={()=>change('grid',nextMode(gridModes,prefs.grid))}/>
+       <B icon={Search} label={'Zoom: '+zoomLabels[view.mode]+' · click to cycle'} onClick={()=>resetView(nextMode(zoomModes,view.mode))}/>
+       <B icon={SunMoon} label="Toggle theme" onClick={()=>change('dark',!prefs.dark)}/>
+       <B icon={Contrast} label="Invert page" active={prefs.invertPage} onClick={()=>change('invertPage',!prefs.invertPage)}/>
+     </>}
      toolbar={<>
-       {full&&<div className="toolgroup">
-        <B icon={FilePlus} label="New sketch" onClick={newSketch}/><B icon={FolderOpen} label="Open image" onClick={open}/><B icon={Folder} label="Open folder" onClick={openFolder}/><B icon={Save} label="Save" onClick={()=>save()} disabled={busy}/><B icon={SaveAll} label="Save as" onClick={()=>save(true)} disabled={busy}/>
+       {(full||simplified)&&<div className="toolgroup document-tools" role="group" aria-label="Document and history">
+        {full&&<><B icon={FilePlus} label="New sketch" onClick={newSketch}/><B icon={FolderOpen} label="Open image" onClick={open}/><B icon={Folder} label="Open folder" onClick={openFolder}/><B icon={Save} label="Save" onClick={()=>save()} disabled={busy}/><B icon={SaveAll} label="Save as" onClick={()=>save(true)} disabled={busy}/></>}
+        <B icon={Undo2} label="Undo" onClick={undo} disabled={!h.current?.index||busy}/><B icon={Redo2} label="Redo" onClick={redo} disabled={!h.current||h.current.index>=h.current.entries.length||busy}/>
+        {full&&<><B icon={Trash2} label="Clear canvas (undoable)" onClick={clear} disabled={busy}/><B icon={Command} label="Commands (Ctrl+K)" onClick={()=>{setQuery('');setDialog('commands')}}/><B icon={Settings} label="Settings" onClick={()=>setDialog('settings')}/></>}
        </div>}
-       {(full||simplified)&&<div className="toolgroup">
+       {(full||simplified)&&<div className="toolgroup drawing-tools" role="group" aria-label="Drawing and image tools">
         {tools.filter(([id])=>full||id==='pen'||id==='rubber').map(([id,icon,label])=><B key={id} icon={icon} label={label} active={tool===id} onClick={()=>{paste.cancelPaste();pen.clearRestoreTool();setTool(id)}}/>)}
+        {full&&<><B icon={PaintBucket} label="Fill shapes" active={prefs.fill} onClick={()=>change('fill',!prefs.fill)}/><B icon={ImagePlus} label="Import image onto canvas" onClick={()=>importInput.current.click()}/><B icon={Clipboard} label="Paste image" onClick={pasteClipboard}/></>}
        </div>}
        {(full||simplified)&&<AppearanceControls prefs={prefs} change={change}/>}
-       {full&&<div className="toolgroup"><B icon={PaintBucket} label="Fill shapes" active={prefs.fill} onClick={()=>change('fill',!prefs.fill)}/></div>}
-       {(full||simplified)&&<div className="toolgroup">
-        <B icon={Undo2} label="Undo" onClick={undo} disabled={!h.current?.index||busy}/><B icon={Redo2} label="Redo" onClick={redo} disabled={!h.current||h.current.index>=h.current.entries.length||busy}/>
-        {full&&<><B icon={ImagePlus} label="Import image onto canvas" onClick={()=>importInput.current.click()}/><B icon={Clipboard} label="Paste image" onClick={pasteClipboard}/><B icon={Trash2} label="Clear canvas" onClick={clear}/></>}
-       </div>}
-       {full&&<><div className="toolgroup"><B icon={Grip} label={'Grid: '+gridLabels[prefs.grid]+' · click to cycle'} onClick={()=>change('grid',nextMode(gridModes,prefs.grid))}/><B icon={Search} label={'Zoom: '+zoomLabels[view.mode]+' · click to cycle'} onClick={()=>resetView(nextMode(zoomModes,view.mode))}/></div>
-        <div className="toolgroup"><B icon={SunMoon} label="Toggle theme" onClick={()=>change('dark',!prefs.dark)}/><B icon={Contrast} label="Invert page" active={prefs.invertPage} onClick={()=>change('invertPage',!prefs.invertPage)}/><B icon={Command} label="Commands (Ctrl+K)" onClick={()=>{setQuery('');setDialog('commands')}}/><B icon={Settings} label="Settings" onClick={()=>setDialog('settings')}/></div></>}
      </>}
      sidebar={<><div className="sidehead"><strong title={folder||'Files'}>{folder||'Files'}</strong><B icon={FolderOpen} label="Open folder" onClick={openFolder}/><B icon={X} label="Hide sidebar" onClick={()=>setSidebar(false)}/></div>
        <div className="file-list">{folderFiles.map(f=><button key={f.name} className={'file '+(name===f.name?'current':'')} title={f.name} onClick={()=>loadLatest.current(f)}>{f.name}</button>)}{!folder&&<p className="empty-folder">Open a local folder to browse sketches.</p>}{folder&&!folderFiles.length&&<p className="empty-folder">No sketches in this folder.</p>}</div></>}

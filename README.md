@@ -41,3 +41,5 @@ The toolbar is a centered single-row or single-column strip with uniform square 
 ## Drawing presets
 
 The single-axis toolbar has separate colour, thickness and opacity groups. Each group exposes one-click presets followed by a precise control (colour picker, pixel thickness or percentage opacity). Settings allows editing and resetting all preset groups. Numeric fields accept decimals and optional units; apply on Enter or blur, Escape cancels. Existing active drawing settings are retained when upgrading.
+
+Thickness and opacity now use five-step line sliders with adjacent precise inputs. The clear action is a reversible history operation, with a single pre-clear snapshot retained even if it exceeds the usual history budget. Toolbar groups: document/history/settings, drawing/image tools, colour, thickness, opacity, view/interface.
