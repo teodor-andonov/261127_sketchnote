@@ -33,3 +33,5 @@ MIT. Third-party dependencies retain their own licenses.
 ## Interface
 
 Floating toolbar and file sidebar can be positioned independently at any edge (Settings). Drag the sidebar's inner edge to resize. The interface control cycles Full / Simplified / Hidden. The status bar is optional; grid and zoom modes are shown there. The zoom button cycles Fit / Fill, and manual navigation remains available. The native document title includes the filename and unsaved indicator.
+
+Overflowing toolbar: drag along the strip or use the mouse wheel. Scrollbars are hidden. The visibility control stays at the trailing edge of the toolbar; the sidebar toggle is adjacent in full mode. The canvas inversion button changes only the displayed colours, never the underlying raster or exports. Transparent regions use the workspace background instead of a checkerboard.
