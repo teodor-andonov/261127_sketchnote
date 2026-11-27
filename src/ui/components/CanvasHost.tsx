@@ -7,11 +7,11 @@ type View={mode:'actual'|'fit'|'fill'|'custom';scale:number;x:number;y:number};
 export type CanvasHostProps={
  width:number;height:number;documentId:number;resetToken:number;
  zoomMode:'actual'|'fit'|'fill';gridMode:GridMode;gridSize:number;gridLineThickness:number;gridDotMultiplier:number;gridColor:string;overlayColor?:string;
- penOnly:boolean;navigationDisabled:boolean;onCancelStroke:()=>void;onViewChange:(view:{mode:View['mode'];scale:number})=>void;onReady:(refs:CanvasRefs|null)=>void;
+ invertPage?:boolean;penOnly:boolean;navigationDisabled:boolean;onCancelStroke:()=>void;onViewChange:(view:{mode:View['mode'];scale:number})=>void;onReady:(refs:CanvasRefs|null)=>void;
 };
 type Point={x:number;y:number};
 export function CanvasHost(props:CanvasHostProps){
- const {width,height,zoomMode,documentId,resetToken,gridMode,gridSize,gridLineThickness,gridDotMultiplier,gridColor,overlayColor,onReady}=props;
+ const {width,height,zoomMode,documentId,resetToken,gridMode,gridSize,gridLineThickness,gridDotMultiplier,gridColor,overlayColor,onReady,invertPage}=props;
  const host=useRef<HTMLDivElement>(null),layer=useRef<HTMLDivElement>(null),final=useRef<HTMLCanvasElement>(null),grid=useRef<HTMLCanvasElement>(null),preview=useRef<HTMLCanvasElement>(null);
  const latest=useRef(props);latest.current=props;
  const camera=useRef<View>({mode:zoomMode,scale:1,x:0,y:0}),size=useRef({w:0,h:0});
@@ -100,9 +100,11 @@ export function CanvasHost(props:CanvasHostProps){
  },[]);
  return <div className="sketchpad-canvas-host"><div ref={host} className={'sketchpad-canvas-scroll '+(hand?'is-navigating':'')} aria-label="Sketch canvas viewport">
    <div ref={layer} className="sketchpad-canvas-layer" style={{width,height,transformOrigin:'top left'}}>
+     <div className={'sketchpad-page '+(invertPage?'page-inverted':'')}>
      <canvas ref={final} width={width} height={height} className="sketchpad-canvas-final" style={{background:overlayColor||'transparent'}}/>
      <canvas ref={grid} width={width} height={height} className="sketchpad-canvas-grid" style={{display:gridMode==='none'?'none':undefined}}/>
      <canvas ref={preview} width={width} height={height} className="sketchpad-canvas-preview"/>
+     </div>
    </div>
  </div></div>
 }
