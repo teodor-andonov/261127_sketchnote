@@ -37,3 +37,7 @@ Floating toolbar and file sidebar can be positioned independently at any edge (S
 Overflowing toolbar: drag along the strip or use the mouse wheel. Scrollbars are hidden. The visibility control stays at the trailing edge of the toolbar; the sidebar toggle is adjacent in full mode. The canvas inversion button changes only the displayed colours, never the underlying raster or exports. Transparent regions use the workspace background instead of a checkerboard.
 
 The toolbar is a centered single-row or single-column strip with uniform square controls. The page is white by default for display, independently of the light/dark workspace theme. Page inversion applies to the page background, raster content, and live drawing preview only; it is not saved or exported, and transparency is preserved on disk.
+
+## Drawing presets
+
+The single-axis toolbar has separate colour, thickness and opacity groups. Each group exposes one-click presets followed by a precise control (colour picker, pixel thickness or percentage opacity). Settings allows editing and resetting all preset groups. Numeric fields accept decimals and optional units; apply on Enter or blur, Escape cancels. Existing active drawing settings are retained when upgrading.

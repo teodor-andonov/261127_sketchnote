@@ -80,3 +80,25 @@
 @media(max-width:750px){.statusbar .history-status,.statusbar .footer-filename{display:none}.statusbar{gap:7px}}
 @media(max-width:460px){.statusbar .resolution-status,.statusbar .status-message{display:none}.floating-panels{--gap:5px}}
 @media(pointer:coarse){.floating-panels{--control:38px}.sidebar-resize{min-width:14px;min-height:14px}}
+
+/* Stage 3 — one-click drawing presets; all controls preserve the same square. */
+.floating-toolbar .drawing-preset{position:relative;display:inline-flex;align-items:center;justify-content:center;padding:0;overflow:hidden}
+.floating-toolbar .drawing-preset.active{background:var(--hover);border-color:var(--interactive-accent)}
+.floating-toolbar .drawing-preset .swatch-dot{width:19px;height:19px}
+.floating-toolbar .width-dot{display:block;flex:0 0 auto;background:var(--text);border-radius:50%;pointer-events:none}
+.floating-toolbar .opacity-preset{font-variant-numeric:tabular-nums;font-size:9px}
+.opacity-mark{position:absolute;inset:4px;border-radius:50%;background:var(--text);opacity:calc(var(--preset-opacity) * .25);pointer-events:none}
+.opacity-value{position:relative;color:var(--text);z-index:1;pointer-events:none;white-space:nowrap;letter-spacing:-.25px}
+.floating-toolbar .toolbar-precise{font-size:10px;font-variant-numeric:tabular-nums;text-align:center;padding:0 1px;border:1px solid var(--line);letter-spacing:-.3px;min-width:0}
+.floating-toolbar .toolbar-precise:focus{font-size:11px;letter-spacing:0}
+.floating-toolbar .precise-color{padding:4px;border:1px solid var(--line);cursor:pointer}
+.preset-settings{display:flex;flex-direction:column;gap:8px}
+.preset-setting-header{display:flex;align-items:center;justify-content:space-between;gap:8px;color:var(--text);font-size:12px}
+.preset-setting-header button{font-size:11px;color:var(--muted);min-height:24px;padding:2px 7px}
+.preset-colors-editor{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.preset-color-editor{display:flex;align-items:center;gap:4px;min-width:0}
+.preset-color-editor input[type=color]{flex:0 0 27px;width:27px;min-height:26px;height:26px;padding:2px}
+.preset-color-editor input[type=text]{min-width:0;width:100%;font:11px ui-monospace,monospace;padding:2px 3px}
+.preset-numbers-editor{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px}
+.preset-numbers-editor input{width:100%;min-width:0;text-align:center;padding:2px;font-size:11px}
+@media(max-width:360px){.preset-colors-editor{grid-template-columns:repeat(2,minmax(0,1fr))}.preset-numbers-editor{grid-template-columns:repeat(3,minmax(0,1fr))}}
