@@ -29,3 +29,7 @@ MIT. Third-party dependencies retain their own licenses.
 - Touch: two-finger pinch/pan; single finger draws unless pen-only is enabled, in which case it pans.
 - D: pen; L: line; R: rectangle; O: ellipse; E: eraser.
 - Grid and zoom icon buttons cycle through presets. The footer shows live zoom percentage.
+
+## Interface
+
+Floating toolbar and file sidebar can be positioned independently at any edge (Settings). Drag the sidebar's inner edge to resize. The interface control cycles Full / Simplified / Hidden. The status bar is optional; grid and zoom modes are shown there. The zoom button cycles Fit / Fill, and manual navigation remains available. The native document title includes the filename and unsaved indicator.

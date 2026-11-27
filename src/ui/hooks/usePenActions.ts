@@ -102,6 +102,8 @@ export function usePenActions({
 
     const handlePointerDown = (event: PointerEvent) => {
       if (!isInRoot(event)) return;
+      // Floating panels overlap the canvas bounds but must not trigger pen actions.
+      if (!event.composedPath().includes(previewCanvas)) return;
       if (!isInsideCanvas(event)) return;
       const isEraserTip = isPenEraser(event);
       const isPenButton = !isEraserTip && isPenBarrelButton(event);
