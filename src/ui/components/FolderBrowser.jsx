@@ -1,7 +1,8 @@
-import React,{useEffect,useRef,useState} from 'react';
+import React,{useEffect,useLayoutEffect,useRef,useState} from 'react';
 import {List,AlignJustify,LayoutGrid,FileImage,FolderOpen,X,ArrowDownWideNarrow,ArrowUpNarrowWide,RefreshCw} from 'lucide-react';
 import {sortLabels} from '../../folder.js';
 import {observeThumbnail,thumbnailKey} from '../../thumbnails.js';
+import {galleryLayout} from '../../gallery-layout.js';
 const viewOptions=[['list',List,'List'],['gallery',LayoutGrid,'Gallery']];
 const densityOptions=[['dense','Dense'],['normal','Normal'],['spacious','Spacious']];
 const fmtDate=new Intl.DateTimeFormat(undefined,{year:'2-digit',month:'short',day:'numeric'});
@@ -31,6 +32,12 @@ function GalleryThumbnail({file,rootRef,store}){
 export function FolderBrowser({folder,remembered,onReconnect,files,prefs,change,loading,thumbnails,currentName,currentHandle,onOpenFolder,onRefresh,onClose,onOpenFile,busy}){
  const rootRef=useRef(null),[selected,setSelected]=useState(null);
  const view=prefs.fileView,density=prefs.fileDensity;
+ const [geometry,setGeometry]=useState(()=>galleryLayout(0,density));
+ useLayoutEffect(()=>{
+  const root=rootRef.current;if(view!=='gallery'||!root)return;
+  const measure=()=>{const next=galleryLayout(root.clientWidth,density);setGeometry(old=>old.columns===next.columns&&old.size===next.size&&old.gap===next.gap?old:next)};
+  measure();const observer=new ResizeObserver(measure);observer.observe(root);return()=>observer.disconnect();
+ },[view,density]);
  // Match real file identity rather than highlighting a same-named file from another folder.
  const candidate=files.find(file=>file.name===currentName);
  useEffect(()=>{
@@ -57,13 +64,15 @@ export function FolderBrowser({folder,remembered,onReconnect,files,prefs,change,
    </div>
   </>}
   <div ref={rootRef} className={'file-list folder-files mode-'+view+' density-'+density} aria-busy={loading}>
+   <div className={view==='gallery'?'gallery-grid':'folder-list-items'} style={view==='gallery'?{'--gallery-columns':geometry.columns,'--gallery-size':geometry.size+'px','--gallery-gap':geometry.gap+'px'}:undefined}>
    {files.map(file=>{
     const current=file.name===selected,detail=[Number.isFinite(file.modified)?fmtDate.format(new Date(file.modified)):null,Number.isFinite(file.size)?formatSize(file.size):null].filter(Boolean).join(' · ');
-    return <button type="button" key={file.name} className={'file browser-file'+(current?' current':'')} title={file.name+(detail?'\n'+detail:'')} aria-current={current?'true':undefined} disabled={busy} onClick={()=>onOpenFile(file)}>
+    return <button type="button" key={file.name} className={(view==='gallery'?'gallery-card':'file browser-file')+(current?' current':'')} title={file.name+(detail?'\n'+detail:'')} aria-current={current?'true':undefined} disabled={busy} onClick={()=>onOpenFile(file)}>
      {view==='gallery'?<GalleryThumbnail key={thumbnailKey(file)} file={file} rootRef={rootRef} store={thumbnails}/>:<FileImage className="file-type-icon" size={15} aria-hidden="true"/>}
      <span className="file-description"><span className="file-name">{file.name}</span></span>
     </button>;
    })}
+   </div>
    {!folder&&<div className="empty-folder">{remembered?<><p>Reconnect {remembered}</p><button type="button" disabled={busy} onClick={onReconnect}>Reconnect folder</button></>:<p>Open a local folder to browse sketches.</p>}</div>}
    {folder&&!files.length&&<p className="empty-folder">{loading?'Reading folder…':'No sketches in this folder.'}</p>}
   </div>

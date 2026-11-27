@@ -17,7 +17,7 @@ import {ThumbnailStore,renderThumbnail} from './thumbnails.js';
 import {getRememberedFolder,rememberFolder,forgetFolder} from './folder-memory.js';
 import {validCanvasSize,canAutoSave,flushBeforeSwitch} from './document-flow.js';
 import './style.css';
-const VERSION='1.5.1';
+const VERSION='1.5.2';
 const COMMIT=import.meta.env.VITE_COMMIT||'local';
 const basePrefs={color:'#000000',width:4,opacity:1,pressure:true,penOnly:false,fill:false,grid:'none',zoom:'fit',dark:matchMedia('(prefers-color-scheme: dark)').matches,autosave:true,delay:5,format:'webp',eraser:5,penButton:'undo',penTip:'erase',toolbarPosition:'top',sidebarPosition:'left',sidebarWidth:230,sidebarHeight:190,showFooter:true,uiMode:'full',sidebarOpen:false,invertPage:false,newBackground:'transparent',newBackgroundColor:'#ffffff',fileSort:'name',fileSortDirection:'asc',fileView:'list',fileDensity:'normal',defaultWidth:1200,defaultHeight:800,rememberFolder:true};
 function readPrefs(){try{const saved=JSON.parse(localStorage.getItem('sketchnote.preferences')||'{}');return normalizeFilePrefs(normalizeAppearance(normalizeLayout({...basePrefs,...saved,invertPage:saved.invertPage??saved.invertCanvas??false})))}catch{return normalizeFilePrefs(normalizeAppearance(normalizeLayout(basePrefs)))}}
