@@ -131,7 +131,7 @@ export function eraser(
     isErasing = false;
     clearCanvas(previewCanvas, previewCtx);
     finalCtx.globalCompositeOperation = "source-over";
-    options.onCommit();
+    if (event.type !== "sketch-navigation-cancel") options.onCommit();
   };
 
   const cleanup = bindPointerTool({

@@ -1,132 +1,19 @@
-import { getPointerPosition, shouldHandlePointer } from "../../utils/pointer";
-
-export type PointerToolHandlers = {
-  onStart: (event: PointerEvent, point: { x: number; y: number }) => void;
-  onMove: (event: PointerEvent, point: { x: number; y: number }) => void;
-  onEnd: (event: PointerEvent, point: { x: number; y: number }) => void;
-  onCancel: (event: PointerEvent) => void;
+import {getPointerPosition,shouldHandlePointer} from '../../utils/pointer';
+export type PointerToolHandlers={
+ onStart:(e:PointerEvent,p:{x:number;y:number})=>void;
+ onMove:(e:PointerEvent,p:{x:number;y:number})=>void;
+ onEnd:(e:PointerEvent,p:{x:number;y:number})=>void;
+ onCancel:(e:PointerEvent)=>void;
 };
-
-type PointerBindingOptions = {
-  canvas: HTMLCanvasElement;
-  root: Element | null;
-  penOnlyMode: boolean;
-  handlers: PointerToolHandlers;
-};
-
-function isFromCanvas(canvas: HTMLCanvasElement, event: PointerEvent): boolean {
-  if (event.target === canvas) return true;
-  if (typeof event.composedPath !== "function") return false;
-  return event.composedPath().includes(canvas);
-}
-
-function isInsideCanvas(
-  canvas: HTMLCanvasElement,
-  event: PointerEvent,
-): boolean {
-  const rect = canvas.getBoundingClientRect();
-  return (
-    event.clientX >= rect.left &&
-    event.clientX <= rect.right &&
-    event.clientY >= rect.top &&
-    event.clientY <= rect.bottom
-  );
-}
-
-function isInRoot(root: Element | null, event: PointerEvent): boolean {
-  if (!root) return true;
-  const target = event.target as Node | null;
-  return !!target && root.contains(target);
-}
-
-function isInCanvasLayer(canvas: HTMLCanvasElement, event: PointerEvent): boolean {
-  const layer = canvas.closest(".sketchpad-canvas-layer");
-  if (!layer) return true;
-  if (typeof event.composedPath === "function") {
-    return event.composedPath().includes(layer);
-  }
-  const target = event.target as Node | null;
-  return !!target && layer.contains(target);
-}
-
-export function bindPointerTool({
-  canvas,
-  root,
-  penOnlyMode,
-  handlers,
-}: PointerBindingOptions): () => void {
-  const ownerWindow = canvas.ownerDocument.defaultView ?? window;
-  const doc = ownerWindow.document;
-
-  const handleCanvasDown = (event: PointerEvent) => {
-    if (!isInRoot(root, event)) return;
-    if (!shouldHandlePointer(event, penOnlyMode)) return;
-    handlers.onStart(event, getPointerPosition(canvas, event));
-  };
-
-  const handleCanvasMove = (event: PointerEvent) => {
-    if (!isInRoot(root, event)) return;
-    if (!shouldHandlePointer(event, penOnlyMode)) return;
-    handlers.onMove(event, getPointerPosition(canvas, event));
-  };
-
-  const handleCanvasUp = (event: PointerEvent) => {
-    handlers.onEnd(event, getPointerPosition(canvas, event));
-  };
-
-  const handleWindowDown = (event: PointerEvent) => {
-    if (!isInRoot(root, event)) return;
-    if (!isInCanvasLayer(canvas, event)) return;
-    if (isFromCanvas(canvas, event)) return;
-    if (!isInsideCanvas(canvas, event)) return;
-    if (!shouldHandlePointer(event, penOnlyMode)) return;
-    handlers.onStart(event, getPointerPosition(canvas, event));
-  };
-
-  const handleWindowMove = (event: PointerEvent) => {
-    if (!isInRoot(root, event)) return;
-    if (!isInCanvasLayer(canvas, event)) return;
-    if (isFromCanvas(canvas, event)) return;
-    if (!isInsideCanvas(canvas, event)) return;
-    if (!shouldHandlePointer(event, penOnlyMode)) return;
-    handlers.onMove(event, getPointerPosition(canvas, event));
-  };
-
-  const handleWindowUp = (event: PointerEvent) => {
-    handlers.onEnd(event, getPointerPosition(canvas, event));
-  };
-
-  const handleCancel = (event: Event) => {
-    handlers.onCancel(event as PointerEvent);
-  };
-
-  canvas.addEventListener("pointerdown", handleCanvasDown);
-  canvas.addEventListener("pointermove", handleCanvasMove);
-  canvas.addEventListener("pointerup", handleCanvasUp);
-  canvas.addEventListener("pointercancel", handleCanvasUp);
-  canvas.addEventListener("lostpointercapture", handleCancel);
-  ownerWindow.addEventListener("pointerup", handleWindowUp);
-  ownerWindow.addEventListener("blur", handleCancel);
-  ownerWindow.addEventListener("resize", handleCancel);
-  ownerWindow.addEventListener("pointerdown", handleWindowDown);
-  ownerWindow.addEventListener("pointermove", handleWindowMove);
-  doc.addEventListener("pointerdown", handleWindowDown, true);
-  doc.addEventListener("pointermove", handleWindowMove, true);
-  doc.addEventListener("pointerup", handleWindowUp, true);
-
-  return () => {
-    canvas.removeEventListener("pointerdown", handleCanvasDown);
-    canvas.removeEventListener("pointermove", handleCanvasMove);
-    canvas.removeEventListener("pointerup", handleCanvasUp);
-    canvas.removeEventListener("pointercancel", handleCanvasUp);
-    canvas.removeEventListener("lostpointercapture", handleCancel);
-    ownerWindow.removeEventListener("pointerup", handleWindowUp);
-    ownerWindow.removeEventListener("blur", handleCancel);
-    ownerWindow.removeEventListener("resize", handleCancel);
-    ownerWindow.removeEventListener("pointerdown", handleWindowDown);
-    ownerWindow.removeEventListener("pointermove", handleWindowMove);
-    doc.removeEventListener("pointerdown", handleWindowDown, true);
-    doc.removeEventListener("pointermove", handleWindowMove, true);
-    doc.removeEventListener("pointerup", handleWindowUp, true);
-  };
+type Options={canvas:HTMLCanvasElement;root:Element|null;penOnlyMode:boolean;handlers:PointerToolHandlers};
+export function bindPointerTool({canvas,penOnlyMode,handlers}:Options){
+ const win=canvas.ownerDocument.defaultView??window;let active:number|null=null;
+ const down=(e:PointerEvent)=>{if(active!==null||!shouldHandlePointer(e,penOnlyMode)||(!e.isPrimary&&e.pointerType!=='pen'))return;active=e.pointerId;handlers.onStart(e,getPointerPosition(canvas,e))};
+ const move=(e:PointerEvent)=>{if(active!==null&&e.pointerId!==active||!shouldHandlePointer(e,penOnlyMode))return;if(active===null&&(e.buttons&1||e.pointerType==='pen'&&e.pressure>0))active=e.pointerId;handlers.onMove(e,getPointerPosition(canvas,e))};
+ const end=(e:PointerEvent)=>{if(active!==e.pointerId)return;active=null;handlers.onEnd(e,getPointerPosition(canvas,e))};
+ const cancel=(e:Event)=>{if(active===null)return;if(e instanceof PointerEvent&&e.pointerId!==active)return;active=null;handlers.onCancel(e as PointerEvent)};
+ const canvasEvents:[string,EventListener][]=[['pointerdown',down as EventListener],['pointermove',move as EventListener],['pointerup',end as EventListener],['pointercancel',cancel],['lostpointercapture',cancel],['sketch-navigation-cancel',cancel]];
+ for(const [name,fn] of canvasEvents)canvas.addEventListener(name,fn);
+ win.addEventListener('pointerup',end);win.addEventListener('pointercancel',cancel);win.addEventListener('blur',cancel);win.addEventListener('resize',cancel);
+ return()=>{for(const [name,fn] of canvasEvents)canvas.removeEventListener(name,fn);win.removeEventListener('pointerup',end);win.removeEventListener('pointercancel',cancel);win.removeEventListener('blur',cancel);win.removeEventListener('resize',cancel)};
 }

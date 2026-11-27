@@ -21,3 +21,11 @@ GitHub Pages deploys automatically from main through Actions. Install the PWA fr
 ## License
 
 MIT. Third-party dependencies retain their own licenses.
+
+## Navigation
+
+- Mouse wheel / trackpad scroll: zoom at cursor.
+- Middle mouse or Space + left drag: pan; drag outside the image also pans.
+- Touch: two-finger pinch/pan; single finger draws unless pen-only is enabled, in which case it pans.
+- D: pen; L: line; R: rectangle; O: ellipse; E: eraser.
+- Grid and zoom icon buttons cycle through presets. The footer shows live zoom percentage.

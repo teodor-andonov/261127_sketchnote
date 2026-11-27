@@ -235,6 +235,7 @@ export function usePasteController({
       commitPaste();
     };
 
+    previewCanvas.addEventListener("sketch-navigation-cancel", handleLostCapture);
     previewCanvas.addEventListener("pointerdown", handlePointerDown, true);
     previewCanvas.addEventListener("pointermove", handlePointerMove, true);
     previewCanvas.addEventListener("pointerup", handlePointerUp, true);
@@ -248,6 +249,7 @@ export function usePasteController({
 
     return () => {
       stopDrag(previewCanvas);
+      previewCanvas.removeEventListener("sketch-navigation-cancel", handleLostCapture);
       previewCanvas.removeEventListener("pointerdown", handlePointerDown, true);
       previewCanvas.removeEventListener("pointermove", handlePointerMove, true);
       previewCanvas.removeEventListener("pointerup", handlePointerUp, true);
