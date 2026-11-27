@@ -39,3 +39,5 @@ export function normalizeAppearance(p){
  opacityPresets:normalizedSlots(p.opacityPresets,DEFAULT_OPACITIES,parseOpacity)};
 }
 export function replaceSlot(values,index,value){return values.map((old,i)=>i===index?value:old)}
+
+export function invertHex(value){const hex=parseHex(value);return hex?'#'+(0xffffff^parseInt(hex.slice(1),16)).toString(16).padStart(6,'0'):null}

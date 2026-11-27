@@ -1,5 +1,5 @@
 import React,{useEffect,useRef,useState} from 'react';
-import {DEFAULT_COLORS,DEFAULT_WIDTHS,DEFAULT_OPACITIES,parseHex,parseWidth,parseOpacity,sameNumber,opacityPercent,nearestPresetIndex,replaceSlot} from '../../appearance.js';
+import {DEFAULT_COLORS,DEFAULT_WIDTHS,DEFAULT_OPACITIES,parseHex,invertHex,parseWidth,parseOpacity,sameNumber,opacityPercent,nearestPresetIndex,replaceSlot} from '../../appearance.js';
 
 const displayNumber=value=>String(Math.round(value*100)/100);
 function CommittedInput({value,parse,format=String,onCommit,label,className='',inputMode='text'}){
@@ -31,11 +31,11 @@ function SteppedSlider({label,values,value,format,onChange}){
   onChange={select} onClick={select}/>;
 }
 export function AppearanceControls({prefs,change}){
- const percent=opacityPercent(prefs.opacity);
+ const percent=opacityPercent(prefs.opacity),display=color=>prefs.invertPage?invertHex(color):color;
  return <>
   <div className="toolgroup color-presets" role="group" aria-label="Drawing color">
-   {prefs.colorPresets.map((color,i)=><PresetButton key={i} label={'Color '+color} active={prefs.color===color} onClick={()=>change('color',color)} extraClass="color-preset"><span className="swatch-dot" style={{background:color}}/></PresetButton>)}
-   <input className="precise-color" aria-label="Custom drawing color" title={'Custom color: '+prefs.color} type="color" value={prefs.color} onChange={e=>{const next=parseHex(e.target.value);if(next!==null)change('color',next)}}/>
+   {prefs.colorPresets.map((color,i)=><PresetButton key={i} label={'Color '+display(color)} active={prefs.color===color} onClick={()=>change('color',color)} extraClass="color-preset"><span className="swatch-dot" style={{background:display(color)}}/></PresetButton>)}
+   <input className="precise-color" aria-label="Custom drawing color" title={'Custom color: '+display(prefs.color)} type="color" value={display(prefs.color)} onChange={e=>{const next=parseHex(e.target.value);if(next!==null)change('color',prefs.invertPage?invertHex(next):next)}}/>
   </div>
   <div className="toolgroup width-presets" role="group" aria-label="Stroke thickness">
    <SteppedSlider label="Stroke thickness" values={prefs.widthPresets} value={prefs.width} format={widthFormat} onChange={v=>change('width',v)}/>

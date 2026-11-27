@@ -167,3 +167,14 @@
  .floating-sidebar .mode-compact .browser-file{min-height:max(32px,var(--compact-height))}
  .floating-sidebar .mode-gallery .browser-file{min-height:0}
 }
+
+/* Square gallery cards: the thumbnail fills an explicitly square card;
+   an overlaid, single-line label never changes its aspect ratio. */
+.floating-sidebar .mode-list .browser-file{min-height:var(--compact-height);padding:2px var(--item-pad)}
+.mode-list .file-type-icon{width:13px;height:13px}
+.floating-sidebar .mode-gallery .browser-file{position:relative;display:block;aspect-ratio:1;min-width:0;min-height:0;height:auto;padding:0;overflow:hidden;align-self:start}
+.mode-gallery .gallery-thumbnail{position:absolute;inset:0;display:grid;aspect-ratio:auto;width:100%;height:100%;border:0;border-radius:4px;overflow:hidden}
+.mode-gallery .gallery-thumbnail img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.mode-gallery .file-description{position:absolute;bottom:0;left:0;right:0;width:100%;background:var(--panel);padding:3px 4px;opacity:.92}
+.mode-gallery .browser-file.current{box-shadow:inset 0 0 0 2px var(--interactive-accent);border-color:var(--interactive-accent)}
+@media(pointer:coarse){.floating-sidebar .mode-list .browser-file{min-height:max(32px,var(--compact-height))}}

@@ -1,7 +1,8 @@
 import {parseHex} from './appearance.js';
+import {validCanvasSize} from './document-flow.js';
 export const sortLabels={name:'Name',modified:'Modified',size:'Size'};
 export function normalizeFilePrefs(p){
- return {...p,newBackground:p.newBackground==='color'?'color':'transparent',newBackgroundColor:parseHex(p.newBackgroundColor)??'#ffffff',fileSort:Object.hasOwn(sortLabels,p.fileSort)?p.fileSort:'name',fileSortDirection:p.fileSortDirection==='desc'?'desc':'asc',fileView:['list','compact','gallery'].includes(p.fileView)?p.fileView:'list',fileDensity:['dense','normal','spacious'].includes(p.fileDensity)?p.fileDensity:'normal'};
+ return {...p,newBackground:p.newBackground==='color'?'color':'transparent',newBackgroundColor:parseHex(p.newBackgroundColor)??'#ffffff',fileSort:Object.hasOwn(sortLabels,p.fileSort)?p.fileSort:'name',fileSortDirection:p.fileSortDirection==='desc'?'desc':'asc',fileView:p.fileView==='gallery'?'gallery':'list',fileDensity:['dense','normal','spacious'].includes(p.fileDensity)?p.fileDensity:'normal',defaultWidth:validCanvasSize(p.defaultWidth,p.defaultHeight)?p.defaultWidth:1200,defaultHeight:validCanvasSize(p.defaultWidth,p.defaultHeight)?p.defaultHeight:800,rememberFolder:p.rememberFolder!==false};
 }
 export const backgroundFor=p=>p.newBackground==='color'?parseHex(p.newBackgroundColor):null;
 export function initializePage(ctx,w,h,background){

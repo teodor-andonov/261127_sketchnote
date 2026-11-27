@@ -51,3 +51,7 @@ With a folder open, Create sketch writes a new image immediately and normal Save
 ## Folder views
 
 The sidebar offers List (filename, date, size), Compact (filename only), and Gallery (small image previews) views. Density is independently adjustable to Dense, Normal or Spacious. View and density preferences persist. The gallery generates previews lazily near the visible region, with two concurrent decodes and a bounded in-memory cache (160 previews or 8 MiB). Preview blobs never touch disk; object URLs are released when cards leave the visible region. Refresh invalidates the preview cache, and saved file metadata automatically invalidates changed previews.
+
+## File workflow refinements
+
+List is the compact filename view; Gallery uses square cards. Page inversion also previews inverted drawing colours in the toolbar; custom colours chosen while inverted are converted back to underlying raster colours. The last directory handle can be remembered in IndexedDB (handle only, never documents), with reconnection when permission is not retained. Autosave flushes lossless edits before switching documents and blocks switching if saving fails or no writable destination exists. JPEG still requires manual saving to prevent repeated lossy encoding. Default new canvas dimensions are configurable. The installed PWA registers only .webp; PNG and JPEG remain available via in-app open/save.

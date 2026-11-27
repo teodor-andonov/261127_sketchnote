@@ -31,17 +31,10 @@
   "file_handlers": [
     {
       "action": "./",
-      "name": "Open image in Sketchnote",
+      "name": "Open WebP in Sketchnote",
       "accept": {
         "image/webp": [
           ".webp"
-        ],
-        "image/png": [
-          ".png"
-        ],
-        "image/jpeg": [
-          ".jpg",
-          ".jpeg"
         ]
       },
       "launch_type": "multiple-clients"

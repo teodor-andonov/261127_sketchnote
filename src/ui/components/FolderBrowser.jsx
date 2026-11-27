@@ -2,7 +2,7 @@ import React,{useEffect,useRef,useState} from 'react';
 import {List,AlignJustify,LayoutGrid,FileImage,FolderOpen,X,ArrowDownWideNarrow,ArrowUpNarrowWide,RefreshCw} from 'lucide-react';
 import {sortLabels} from '../../folder.js';
 import {observeThumbnail,thumbnailKey} from '../../thumbnails.js';
-const viewOptions=[['list',List,'List'],['compact',AlignJustify,'Compact'],['gallery',LayoutGrid,'Gallery']];
+const viewOptions=[['list',List,'List'],['gallery',LayoutGrid,'Gallery']];
 const densityOptions=[['dense','Dense'],['normal','Normal'],['spacious','Spacious']];
 const fmtDate=new Intl.DateTimeFormat(undefined,{year:'2-digit',month:'short',day:'numeric'});
 const formatSize=size=>size<1024?size+' B':size<1048576?(size/1024).toFixed(1)+' KB':(size/1048576).toFixed(1)+' MB';
@@ -28,7 +28,7 @@ function GalleryThumbnail({file,rootRef,store}){
   {(!url||failed)&&<FileImage size={22} aria-label={failed?'Preview unavailable':undefined} aria-hidden={!failed}/>}
  </span>;
 }
-export function FolderBrowser({folder,files,prefs,change,loading,thumbnails,currentName,currentHandle,onOpenFolder,onRefresh,onClose,onOpenFile,busy}){
+export function FolderBrowser({folder,remembered,onReconnect,files,prefs,change,loading,thumbnails,currentName,currentHandle,onOpenFolder,onRefresh,onClose,onOpenFile,busy}){
  const rootRef=useRef(null),[selected,setSelected]=useState(null);
  const view=prefs.fileView,density=prefs.fileDensity;
  // Match real file identity rather than highlighting a same-named file from another folder.
@@ -61,10 +61,10 @@ export function FolderBrowser({folder,files,prefs,change,loading,thumbnails,curr
     const current=file.name===selected,detail=[Number.isFinite(file.modified)?fmtDate.format(new Date(file.modified)):null,Number.isFinite(file.size)?formatSize(file.size):null].filter(Boolean).join(' · ');
     return <button type="button" key={file.name} className={'file browser-file'+(current?' current':'')} title={file.name+(detail?'\n'+detail:'')} aria-current={current?'true':undefined} disabled={busy} onClick={()=>onOpenFile(file)}>
      {view==='gallery'?<GalleryThumbnail key={thumbnailKey(file)} file={file} rootRef={rootRef} store={thumbnails}/>:<FileImage className="file-type-icon" size={15} aria-hidden="true"/>}
-     <span className="file-description"><span className="file-name">{file.name}</span>{view==='list'&&detail&&<span className="file-meta">{detail}</span>}</span>
+     <span className="file-description"><span className="file-name">{file.name}</span></span>
     </button>;
    })}
-   {!folder&&<p className="empty-folder">Open a local folder to browse sketches.</p>}
+   {!folder&&<div className="empty-folder">{remembered?<><p>Reconnect {remembered}</p><button type="button" disabled={busy} onClick={onReconnect}>Reconnect folder</button></>:<p>Open a local folder to browse sketches.</p>}</div>}
    {folder&&!files.length&&<p className="empty-folder">{loading?'Reading folder…':'No sketches in this folder.'}</p>}
   </div>
   {folder&&<div className="folder-count" role="status">{loading?'Reading…':files.length+' '+(files.length===1?'sketch':'sketches')}</div>}
