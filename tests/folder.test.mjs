@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normalizeFilePrefs,backgroundFor,initializePage,sortFiles,availableName,writeNewFile,readFolderFiles,ensureWritePermission} from '../src/folder.js';
+import {normalizeFilePrefs,backgroundFor,initializePage,sortFiles,availableName,writeNewFile,readFolderFiles,ensureWritePermission,readSavedFolderEntry,upsertFolderEntry} from '../src/folder.js';
 test('background settings validate and transparent is the default',()=>{
  const a=normalizeFilePrefs({});assert.equal(backgroundFor(a),null);assert.equal(a.fileSort,'name');assert.equal(a.fileSortDirection,'asc');
  assert.equal(backgroundFor(normalizeFilePrefs({newBackground:'color',newBackgroundColor:'#abc'})),'#aabbcc');
@@ -31,3 +31,14 @@ test('folder listing excludes nonimages and tolerates unavailable metadata',asyn
  const files=await readFolderFiles(dir);assert.equal(files.length,2);assert.equal(files[0].modified,123);assert.equal(files[1].size,null);
 });
 test('folder permission denial is surfaced',async()=>{await assert.rejects(ensureWritePermission({queryPermission:async()=> 'prompt',requestPermission:async()=> 'denied'}),/permission not granted/);await ensureWritePermission({queryPermission:async()=> 'granted',requestPermission:async()=>{throw Error('must not prompt')}})});
+
+test('single saved entry update preserves other entries and existing handles',async()=>{
+ const oldHandle={name:'a.webp'},other={name:'b.webp',modified:1,size:2},original=[{name:'a.webp',handle:oldHandle,modified:1,size:3},other];
+ const target={name:'a.webp',getFile:async()=>({lastModified:2,size:5})};
+ const entry=await readSavedFolderEntry({resolve:async()=>['a.webp']},target);
+ const next=upsertFolderEntry(original,entry);assert.equal(next[0].handle,oldHandle);assert.equal(next[0].modified,2);assert.equal(next[1],other);assert.equal(original[0].modified,1);
+ assert.equal(upsertFolderEntry(next,entry),next);
+ assert.equal(await readSavedFolderEntry({resolve:async()=>null},target),null);
+ assert.equal(await readSavedFolderEntry({resolve:async()=>['sub','a.webp']},target),null);
+ assert.equal(upsertFolderEntry(next,{name:'c.webp',modified:3,size:4}).length,3);
+});

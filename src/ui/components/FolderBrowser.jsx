@@ -11,18 +11,25 @@ function IconButton({icon:Icon,label,onClick,active,disabled}){
  return <button type="button" className={'icon'+(active?' active':'')} aria-label={label} title={label} aria-pressed={active} disabled={disabled} onClick={onClick}><Icon size={16}/></button>;
 }
 function GalleryThumbnail({file,rootRef,store}){
- const ref=useRef(null),[visible,setVisible]=useState(false),[url,setUrl]=useState(null),[failed,setFailed]=useState(false);
+ const ref=useRef(null),shown=useRef(null),[visible,setVisible]=useState(false),[url,setUrl]=useState(null),[failed,setFailed]=useState(false);
  const key=thumbnailKey(file);
+ const release=()=>{if(shown.current){URL.revokeObjectURL(shown.current);shown.current=null}};
  useEffect(()=>observeThumbnail(rootRef.current,ref.current,setVisible),[rootRef]);
+ useEffect(()=>()=>release(),[]);
  useEffect(()=>{
-  setUrl(null);setFailed(false);
-  if(!visible)return;
-  const controller=new AbortController();let objectUrl;
-  store.get(file,controller.signal).then(blob=>{
+  if(!visible){release();setUrl(null);setFailed(false);return}
+  const controller=new AbortController();let pendingUrl;
+  store.get(file,controller.signal).then(async blob=>{
    if(controller.signal.aborted)return;
-   objectUrl=URL.createObjectURL(blob);setUrl(objectUrl);
-  }).catch(error=>{if(!controller.signal.aborted&&error.name!=='AbortError')setFailed(true)});
-  return()=>{controller.abort();if(objectUrl)URL.revokeObjectURL(objectUrl)};
+   pendingUrl=URL.createObjectURL(blob);
+   // Keep the old thumbnail visible until its replacement is decoded.
+   const image=new Image();image.src=pendingUrl;await image.decode();
+   if(controller.signal.aborted)return;
+   const old=shown.current;shown.current=pendingUrl;pendingUrl=null;
+   setUrl(shown.current);setFailed(false);
+   if(old)URL.revokeObjectURL(old);
+  }).catch(error=>{if(!controller.signal.aborted&&error.name!=='AbortError'&&!shown.current)setFailed(true)}).finally(()=>{if(pendingUrl){URL.revokeObjectURL(pendingUrl);pendingUrl=null}});
+  return()=>{controller.abort();if(pendingUrl){URL.revokeObjectURL(pendingUrl);pendingUrl=null}};
  },[visible,key,store]);
  return <span ref={ref} className="gallery-thumbnail">
   {url?<img src={url} alt="" draggable={false} decoding="async" onError={()=>setFailed(true)} style={failed?{display:'none'}:undefined}/>:null}
@@ -41,11 +48,12 @@ export function FolderBrowser({folder,remembered,onReconnect,files,prefs,change,
  // Match real file identity rather than highlighting a same-named file from another folder.
  const candidate=files.find(file=>file.name===currentName);
  useEffect(()=>{
-  let live=true;setSelected(null);
+  let live=true;
   if(candidate&&currentHandle){
    if(candidate.handle===currentHandle)setSelected(candidate.name);
-   else if(candidate.handle.isSameEntry)candidate.handle.isSameEntry(currentHandle).then(same=>{if(live&&same)setSelected(candidate.name)}).catch(()=>{});
-  }
+   else if(candidate.handle.isSameEntry)candidate.handle.isSameEntry(currentHandle).then(same=>{if(live)setSelected(same?candidate.name:null)}).catch(()=>{if(live)setSelected(null)});
+   else setSelected(null);
+  }else setSelected(null);
   return()=>{live=false};
  },[candidate?.handle,currentHandle]);
  return <>
@@ -66,9 +74,9 @@ export function FolderBrowser({folder,remembered,onReconnect,files,prefs,change,
   <div ref={rootRef} className={'file-list folder-files mode-'+view+' density-'+density} aria-busy={loading}>
    <div className={view==='gallery'?'gallery-grid':'folder-list-items'} style={view==='gallery'?{'--gallery-columns':geometry.columns,'--gallery-size':geometry.size+'px','--gallery-gap':geometry.gap+'px'}:undefined}>
    {files.map(file=>{
-    const current=file.name===selected,detail=[Number.isFinite(file.modified)?fmtDate.format(new Date(file.modified)):null,Number.isFinite(file.size)?formatSize(file.size):null].filter(Boolean).join(' · ');
-    return <button type="button" key={file.name} className={(view==='gallery'?'gallery-card':'file browser-file')+(current?' current':'')} title={file.name+(detail?'\n'+detail:'')} aria-current={current?'true':undefined} disabled={busy} onClick={()=>onOpenFile(file)}>
-     {view==='gallery'?<GalleryThumbnail key={thumbnailKey(file)} file={file} rootRef={rootRef} store={thumbnails}/>:<FileImage className="file-type-icon" size={15} aria-hidden="true"/>}
+    const current=file.name===currentName&&(file.handle===currentHandle||file.name===selected),detail=[Number.isFinite(file.modified)?fmtDate.format(new Date(file.modified)):null,Number.isFinite(file.size)?formatSize(file.size):null].filter(Boolean).join(' · ');
+    return <button type="button" key={file.name} className={(view==='gallery'?'gallery-card':'file browser-file')+(current?' current':'')} title={file.name+(detail?'\n'+detail:'')} aria-current={current?'true':undefined} aria-disabled={busy||undefined} onClick={()=>{if(!busy&&!current)onOpenFile(file)}}>
+     {view==='gallery'?<GalleryThumbnail file={file} rootRef={rootRef} store={thumbnails}/>:<FileImage className="file-type-icon" size={15} aria-hidden="true"/>}
      <span className="file-description"><span className="file-name">{file.name}</span></span>
     </button>;
    })}

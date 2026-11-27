@@ -28,7 +28,7 @@ export function CanvasHost(props:CanvasHostProps){
    const el=host.current!;const observer=new ResizeObserver(()=>{const w=el.clientWidth,h=el.clientHeight;if(!w||!h)return;const old=size.current;if(w===old.w&&h===old.h)return;camera.current=old.w?resizeView(camera.current,latest.current.width,latest.current.height,old.w,old.h,w,h):presetView(latest.current.zoomMode,latest.current.width,latest.current.height,w,h);size.current={w,h};render()});observer.observe(el);
    return()=>{observer.disconnect();cancelAnimationFrame(raf.current);raf.current=0}
  },[]);
- useEffect(()=>{const c=grid.current,ctx=c?.getContext('2d');if(c&&ctx)drawGrid(c,ctx,width,height,gridSize,gridMode,gridLineThickness,gridDotMultiplier,gridColor)},[width,height,gridSize,gridMode,gridLineThickness,gridDotMultiplier,gridColor]);
+ useLayoutEffect(()=>{const c=grid.current,ctx=c?.getContext('2d');if(c&&ctx&&gridMode!=='none')drawGrid(c,ctx,width,height,gridSize,gridMode,gridLineThickness,gridDotMultiplier,gridColor)},[width,height,gridSize,gridMode,gridLineThickness,gridDotMultiplier,gridColor]);
  useLayoutEffect(()=>{
    const el=host.current!,ink=preview.current!;
    let space=false,panId:number|null=null,panPoint:Point|null=null,drawId:number|null=null,drawType='',pinching=false,ignored=new Set<number>();

@@ -62,3 +62,19 @@ export async function writeNewFile(dir,name,blob,write){
  }
  return target;
 }
+
+// Updating one saved file avoids rescanning and re-identifying the whole folder.
+export async function readSavedFolderEntry(dir,handle){
+ if(typeof dir.resolve!=='function')return null;
+ const path=await dir.resolve(handle);
+ if(!path||path.length!==1)return null;
+ const file=await handle.getFile();
+ return {name:handle.name,handle,modified:file.lastModified,size:file.size};
+}
+export function upsertFolderEntry(files,entry){
+ const index=files.findIndex(f=>f.name===entry.name);
+ if(index<0)return [...files,entry];
+ const old=files[index];
+ if(old.modified===entry.modified&&old.size===entry.size)return files;
+ const next=files.slice();next[index]={...entry,handle:old.handle};return next;
+}

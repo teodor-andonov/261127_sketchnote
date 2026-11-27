@@ -177,3 +177,6 @@
 .gallery-grid .gallery-card:hover,.gallery-grid .gallery-card.current{border-color:var(--interactive-accent)}
 .gallery-grid .gallery-card.current::after{content:'';position:absolute;inset:0;border:2px solid var(--interactive-accent);border-radius:4px;pointer-events:none}
 .gallery-grid .gallery-card:focus-visible{outline:2px solid var(--interactive-accent);outline-offset:-2px}
+
+/* Keep the folder visually stable while loading; suppress activation, not opacity. */
+.folder-files button[aria-disabled=true]{cursor:progress}

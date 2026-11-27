@@ -1,4 +1,4 @@
-import React,{useState,useRef,useCallback,useEffect,useMemo} from 'react';
+import React,{useState,useRef,useCallback,useEffect,useMemo,useLayoutEffect} from 'react';
 import {createRoot} from 'react-dom/client';
 import {Pencil,Minus,Square,Circle,Eraser,Undo2,Redo2,FilePlus,FolderOpen,Save,SaveAll,ImagePlus,Clipboard,Trash2,Settings,Command,Check,X,Folder,PaintBucket,SunMoon,PanelLeftClose,PanelLeftOpen,Grip,Search,Contrast,PanelsTopLeft,PanelTop,EyeOff,ChevronUp,ChevronDown,ArrowDownWideNarrow,ArrowUpNarrowWide,RefreshCw} from 'lucide-react';
 import {CanvasHost} from './ui/components/CanvasHost';
@@ -11,13 +11,13 @@ import {normalizeLayout,positions,nextMode,uiModes,zoomModes,gridModes} from './
 import {FloatingPanels} from './ui/components/FloatingPanels.jsx';
 import {AppearanceControls,PresetSettings} from './ui/components/AppearanceControls.jsx';
 import {normalizeAppearance} from './appearance.js';
-import {normalizeFilePrefs,backgroundFor,initializePage,sortFiles,readFolderFiles,writeNewFile,ensureWritePermission} from './folder.js';
+import {normalizeFilePrefs,backgroundFor,initializePage,sortFiles,readFolderFiles,writeNewFile,ensureWritePermission,readSavedFolderEntry,upsertFolderEntry} from './folder.js';
 import {FolderBrowser} from './ui/components/FolderBrowser.jsx';
 import {ThumbnailStore,renderThumbnail} from './thumbnails.js';
 import {getRememberedFolder,rememberFolder,forgetFolder} from './folder-memory.js';
-import {validCanvasSize,canAutoSave,flushBeforeSwitch} from './document-flow.js';
+import {validCanvasSize,canAutoSave,flushBeforeSwitch,prepareDocumentSwitch} from './document-flow.js';
 import './style.css';
-const VERSION='1.5.2';
+const VERSION='1.5.3';
 const COMMIT=import.meta.env.VITE_COMMIT||'local';
 const basePrefs={color:'#000000',width:4,opacity:1,pressure:true,penOnly:false,fill:false,grid:'none',zoom:'fit',dark:matchMedia('(prefers-color-scheme: dark)').matches,autosave:true,delay:5,format:'webp',eraser:5,penButton:'undo',penTip:'erase',toolbarPosition:'top',sidebarPosition:'left',sidebarWidth:230,sidebarHeight:190,showFooter:true,uiMode:'full',sidebarOpen:false,invertPage:false,newBackground:'transparent',newBackgroundColor:'#ffffff',fileSort:'name',fileSortDirection:'asc',fileView:'list',fileDensity:'normal',defaultWidth:1200,defaultHeight:800,rememberFolder:true};
 function readPrefs(){try{const saved=JSON.parse(localStorage.getItem('sketchnote.preferences')||'{}');return normalizeFilePrefs(normalizeAppearance(normalizeLayout({...basePrefs,...saved,invertPage:saved.invertPage??saved.invertCanvas??false})))}catch{return normalizeFilePrefs(normalizeAppearance(normalizeLayout(basePrefs)))}}
@@ -30,6 +30,7 @@ const B=({icon:Icon,label,onClick,active,disabled})=><button className={'icon '+
 function App(){
  const [prefs,setPrefs]=useState(readPrefs),[tool,setTool]=useState('pen'),[refs,setRefs]=useState(null),[doc,setDoc]=useState(()=>({id:1,width:prefs.defaultWidth,height:prefs.defaultHeight,image:null,background:backgroundFor(prefs)})),[name,setName]=useState(()=>stamp()+formats[prefs.format].ext),[dirty,setDirty]=useState(false),[busy,setBusy]=useState(false),[status,setStatus]=useState('Ready'),[historyTick,bump]=useState(0),[dialog,setDialog]=useState(null),[query,setQuery]=useState(''),[folder,setFolder]=useState(null),[remembered,setRemembered]=useState(null),[folderFiles,setFolderFiles]=useState([]),[folderGeneration,setFolderGeneration]=useState(0),[folderLoading,setFolderLoading]=useState(false),[newSize,setNewSize]=useState([prefs.defaultWidth,prefs.defaultHeight]),[defaultSizeDraft,setDefaultSizeDraft]=useState(null);
  const [view,setView]=useState({mode:prefs.zoom,scale:1}),[viewReset,setViewReset]=useState(0);
+ const updateView=useCallback(next=>setView(old=>old.mode===next.mode&&old.scale===next.scale?old:next),[]);
  const resetView=mode=>{change('zoom',mode);setViewReset(x=>x+1)};
  const cancelStroke=useCallback(()=>{const hist=h.current;if(hist)hist.ctx.putImageData(hist.current,0,0)},[]);
  const h=useRef(null),handle=useRef(null),folderRef=useRef(null),folderScan=useRef(0),folderChoice=useRef(0),switching=useRef(false),saveTask=useRef(null),revision=useRef(0),clean=useRef(0),timer=useRef(null),saving=useRef(false),docRef=useRef(doc),readyDoc=useRef(null),openInput=useRef(null),importInput=useRef(null),alive=useRef(true),saveLatest=useRef(null),loadLatest=useRef(null),dirtyRef=useRef(false),busyRef=useRef(false);
@@ -51,21 +52,24 @@ function App(){
  const pen=usePenActions({canvasRefs:refs,penButtonAction:prefs.penButton,eraserTipAction:prefs.penTip,activeTool:tool,setActiveTool:setTool,onUndo:undo,onReset:clear,onSave:saveFromPen,isPaused:!!paste.pasteState||busy});
  const eraserCommit=useCallback(()=>{commit();pen.handleEraserCommit()},[commit,pen.handleEraserCommit]);
  useToolBindings({canvasRefs:refs,activeTool:tool,lineWidth:prefs.width,color:prefs.color,opacity:prefs.opacity,fillEnabled:prefs.fill,penOnlyMode:prefs.penOnly,pressureEnabled:prefs.pressure,pressureFactor:.7,eraserWidthMultiplier:prefs.eraser,eraserPreviewEnabled:true,onCommit:commit,onEraserCommit:eraserCommit,rebindToken:doc.id,isPaused:!!paste.pasteState||busy});
- useEffect(()=>{if(!refs)return;if(readyDoc.current===doc.id&&h.current?.ctx.canvas===refs.finalCanvas)return;const ctx=refs.finalCanvas.getContext('2d',{willReadFrequently:true});initializePage(ctx,doc.width,doc.height,doc.background);if(doc.image)ctx.drawImage(doc.image,0,0);h.current=new TileHistory(ctx);readyDoc.current=doc.id;bump(x=>x+1)},[refs,doc]);
- const replaceDocument=async action=>{
+ useLayoutEffect(()=>{if(!refs)return;if(readyDoc.current===doc.id&&h.current?.ctx.canvas===refs.finalCanvas)return;const ctx=refs.finalCanvas.getContext('2d',{willReadFrequently:true});initializePage(ctx,doc.width,doc.height,doc.background);if(doc.image)ctx.drawImage(doc.image,0,0);refs.previewCanvas.getContext('2d')?.clearRect(0,0,doc.width,doc.height);h.current=new TileHistory(ctx);readyDoc.current=doc.id;bump(x=>x+1)},[refs,doc]);
+ const replaceDocument=async (action,prepare=null)=>{
   if(switching.current||busyRef.current)return;
   switching.current=true;clearTimeout(timer.current);busyRef.current=true;setBusy(true);
   try{
-   if(saveTask.current)await saveTask.current;
    if(paste.pasteState){alert('Finish or cancel the pasted image before switching sketches.');return}
-   const allowed=await flushBeforeSwitch({
-    isDirty:()=>dirtyRef.current,autosave:prefs.autosave,
-    canSave:()=>canAutoSave(handle.current,folderRef.current,prefs.format),
-    save:()=>saveLatest.current(false,true,true),
-    confirmDiscard:()=>confirm('Discard unsaved changes?')
-   });
+   const flush=async()=>{
+    if(saveTask.current)await saveTask.current;
+    return flushBeforeSwitch({
+     isDirty:()=>dirtyRef.current,autosave:prefs.autosave,
+     canSave:()=>canAutoSave(handle.current,folderRef.current,prefs.format),
+     save:()=>saveLatest.current(false,true,true),
+     confirmDiscard:()=>confirm('Discard unsaved changes?')
+    });
+   };
+   const {allowed,value}=await prepareDocumentSwitch(flush,prepare);
    if(!allowed){if(prefs.autosave&&dirtyRef.current){setStatus('Switch cancelled: current sketch is not saved');alert('The current sketch could not be autosaved. Save it manually or choose a writable folder before switching.')}return}
-   return await action();
+   return await action(value);
   }catch(e){setStatus(String(e.message||e))}
   finally{
    switching.current=false;busyRef.current=false;setBusy(false);
@@ -73,8 +77,21 @@ function App(){
   }
  };
  const installDoc=(image,fileName,fileHandle,width,height,background=null)=>{clearTimeout(timer.current);paste.cancelPaste();handle.current=fileHandle;revision.current=0;clean.current=0;dirtyRef.current=false;setDirty(false);setName(fileName);const d={id:docRef.current.id+1,width,height,image,background};docRef.current=d;setDoc(d);setStatus(fileHandle?'Opened local file':'Ready');setDialog(null)};
- const openFile=async (f,fh=null)=>replaceDocument(async()=>{const image=await decode(fh?await fh.getFile():f);if(!validCanvasSize(image.naturalWidth,image.naturalHeight))throw Error('Image exceeds the 40 megapixel / 16384px canvas limit');installDoc(image,fh?.name||f.name,fh,image.naturalWidth,image.naturalHeight)});
+ const openFile=async (f,fh=null)=>{
+  if(switching.current||busyRef.current)return;
+  // A click on the already-open file is a no-op. Avoid reading a file while it is being saved.
+  const current=handle.current;
+  if(fh&&current&&fh.name===current.name){
+   try{if(fh===current||await fh.isSameEntry?.(current))return}catch{}
+  }
+  const load=async()=>{const image=await decode(fh?await fh.getFile():f);if(!validCanvasSize(image.naturalWidth,image.naturalHeight))throw Error('Image exceeds the 40 megapixel / 16384px canvas limit');return image};
+  // Distinct file names can decode while the previous document is flushed. For
+  // ambiguous identity (including unnamed drafts) retain serial ordering.
+  const parallel=!!fh&&!!current&&fh.name!==current.name&&prefs.autosave;
+  return replaceDocument(async prepared=>{const image=prepared||await load();installDoc(image,fh?.name||f.name,fh,image.naturalWidth,image.naturalHeight)},parallel?load:null);
+ };
  loadLatest.current=fh=>openFile(null,fh);
+ const openFromFolder=useCallback(file=>loadLatest.current?.(file.handle),[]);
  const open=async()=>{if(busyRef.current||saving.current)return;try{if(window.showOpenFilePicker){const [fh]=await window.showOpenFilePicker({types:imageTypes,multiple:false});if(fh)await loadLatest.current(fh)}else openInput.current.click()}catch(e){if(e.name!=='AbortError')setStatus(e.message)}};
  const activateFolder=async(dir,show=true)=>{
   folderRef.current=dir;setFolder(dir.name);setRemembered(dir);setFolderGeneration(g=>g+1);setFolderFiles([]);if(show)setSidebar(true);
@@ -127,6 +144,12 @@ function App(){
   finally{if(scan===folderScan.current&&folderRef.current===dir)setFolderLoading(false)}
  }
  const refreshFolderView=()=>{setFolderGeneration(g=>g+1);return refreshFolder()};
+ const updateSavedEntry=async target=>{
+  const dir=folderRef.current;if(!dir||!target)return;
+  const scan=folderScan.current;
+  try{const entry=await readSavedFolderEntry(dir,target);if(entry&&folderRef.current===dir&&scan===folderScan.current)setFolderFiles(old=>upsertFolderEntry(old,entry))}
+  catch{/* A full rescan remains available via Refresh. */}
+ };
  const performSave=async (as=false,automatic=false,duringSwitch=false)=>{
   if(!refs||readyDoc.current!==docRef.current.id||saving.current||(!duringSwitch&&busyRef.current)||paste.pasteState)return false;
   if(automatic&&(!dirtyRef.current||!canAutoSave(handle.current,folderRef.current,prefs.format)))return !dirtyRef.current;
@@ -145,7 +168,7 @@ function App(){
    else if(target){await write(target,blob);handle.current=target;setName(target.name)}
    else{const n=suggestName(name,format);download(blob,n);setName(n)}
    if(revision.current===rev){clean.current=rev;dirtyRef.current=false;setDirty(false)}
-   setStatus(target?'Saved to disk':'Image exported');if(folderRef.current)refreshFolder().catch(()=>{});return !dirtyRef.current;
+   setStatus(target?'Saved to disk':'Image exported');if(target)void updateSavedEntry(target);return !dirtyRef.current;
   }catch(e){if(e.name!=='AbortError')setStatus('Save failed: '+(e.message||e));return false}
   finally{saving.current=false;if(!switching.current&&dirtyRef.current&&revision.current!==rev&&prefs.autosave&&canAutoSave(handle.current,folderRef.current,prefs.format)){clearTimeout(timer.current);timer.current=setTimeout(()=>saveLatest.current?.(false,true),prefs.delay*1000)}}
  };
@@ -175,9 +198,8 @@ function App(){
     const blob=await encodeCanvas(canvas,format);
     const target=await writeNewFile(dir,fileName,blob,write);
     installDoc(null,target.name,target,w,h,background);
-    setStatus('Created in '+dir.name);
+    setStatus('Created in '+dir.name);void updateSavedEntry(target);
    }finally{canvas.width=0;canvas.height=0}
-   await refreshFolder(dir);
   }catch(e){
    // Preserve the new sketch as unsaved, allowing the user to retry or Save As.
    installDoc(null,fileName,null,w,h,background);markDirty();setStatus('Could not create file: '+(e.message||e)+'. Sketch is unsaved.');
@@ -191,7 +213,7 @@ function App(){
  useEffect(()=>{const fn=e=>{const mod=e.ctrlKey||e.metaKey,key=e.key.toLowerCase();if(mod&&key==='k'){e.preventDefault();setQuery('');setDialog(x=>x==='commands'?null:'commands');return}if(e.key==='Escape'){if(dialog)setDialog(null);else paste.cancelPaste();return}if(/INPUT|TEXTAREA|SELECT/.test(e.target?.tagName||'')||dialog||busy)return;if(mod&&['s','o','n','z','y'].includes(key)){e.preventDefault();if(key==='s')save(e.shiftKey,false);if(key==='o')open();if(key==='n')newSketch();if(key==='z')(e.shiftKey?redo:undo)();if(key==='y')redo();return}if(!mod){const t={d:'pen',l:'segment',r:'box',o:'oval',e:'rubber'}[key];if(t)setTool(t);if(key==='enter'&&paste.pasteState)paste.commitPaste()}};window.addEventListener('keydown',fn);return()=>window.removeEventListener('keydown',fn)},[dialog,busy,paste,refs,prefs,name,doc]);
  return <div className={'sketchpad-app '+(prefs.showFooter?'reserve-footer':'')} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const file=e.dataTransfer.files[0];if(file?.type.startsWith('image/'))openFile(file)}}>
   <main className="canvas-stage">
-   <div className="workspace"><CanvasHost invertPage={prefs.invertPage} documentId={doc.id} resetToken={viewReset} penOnly={prefs.penOnly} navigationDisabled={busy||!!dialog} onCancelStroke={cancelStroke} onViewChange={setView} width={doc.width} height={doc.height} zoomMode={prefs.zoom} gridMode={prefs.grid} gridSize={50} gridLineThickness={1} gridDotMultiplier={2} gridColor="rgba(110,110,110,.2)" overlayColor="transparent" onReady={setRefs}/>{paste.pasteState&&<div className="pastebar"><span>Move or resize image</span><B icon={Check} label="Commit paste" onClick={paste.commitPaste}/><B icon={X} label="Cancel paste" onClick={paste.cancelPaste}/></div>}</div>
+   <div className="workspace"><CanvasHost invertPage={prefs.invertPage} documentId={doc.id} resetToken={viewReset} penOnly={prefs.penOnly} navigationDisabled={busy||!!dialog} onCancelStroke={cancelStroke} onViewChange={updateView} width={doc.width} height={doc.height} zoomMode={prefs.zoom} gridMode={prefs.grid} gridSize={50} gridLineThickness={1} gridDotMultiplier={2} gridColor="rgba(110,110,110,.2)" overlayColor="transparent" onReady={setRefs}/>{paste.pasteState&&<div className="pastebar"><span>Move or resize image</span><B icon={Check} label="Commit paste" onClick={paste.commitPaste}/><B icon={X} label="Cancel paste" onClick={paste.cancelPaste}/></div>}</div>
    <FloatingPanels toolbarPosition={prefs.toolbarPosition} sidebarPosition={prefs.sidebarPosition}
      sidebarWidth={prefs.sidebarWidth} sidebarHeight={prefs.sidebarHeight} onResize={(key,value)=>change(key,value)}
      sidebarOpen={full&&sidebar} uiMode={prefs.uiMode}
@@ -218,7 +240,7 @@ function App(){
      sidebar={<FolderBrowser folder={folder} remembered={remembered?.name} onReconnect={reconnectFolder} files={sortedFiles} prefs={prefs} change={change}
        loading={folderLoading} thumbnails={thumbnails} currentName={name} currentHandle={handle.current}
        onOpenFolder={openFolder} onRefresh={refreshFolderView} onClose={()=>setSidebar(false)}
-       onOpenFile={file=>loadLatest.current(file.handle)} busy={busy}/>}
+       onOpenFile={openFromFolder} busy={busy}/>}
    />
   </main>
   {full&&prefs.showFooter&&<footer className="statusbar"><span className="status-message" role="status" title={status}>{status}</span><span className="footer-filename" title={name}>{name}{dirty?' *':''}</span><div className="spacer"/><span className="grid-status">Grid: {gridLabels[prefs.grid]}</span><span>Zoom: {zoomLabels[view.mode]} · {Math.round(view.scale*100)}%</span><span className="resolution-status">{doc.width} × {doc.height}</span><span className="history-status">{Math.round((h.current?.bytes||0)/1048576)} MB history</span><span>v{VERSION} · {COMMIT.slice(0,7)}</span></footer>}

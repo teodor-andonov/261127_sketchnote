@@ -10,3 +10,15 @@ export async function flushBeforeSwitch({isDirty,autosave,canSave,save,confirmDi
  const result=await save();
  return result===true&&!isDirty();
 }
+
+// Start the next decode and the previous save together. A rejected decode is
+// captured immediately, and the document can only be replaced after a successful flush.
+export async function prepareDocumentSwitch(flush,prepare){
+ const pending=prepare?Promise.resolve().then(prepare).then(value=>({value}),error=>({error,failed:true})):null;
+ const allowed=await flush();
+ if(!allowed)return {allowed:false};
+ if(!pending)return {allowed:true};
+ const result=await pending;
+ if(result.failed)throw result.error;
+ return {allowed:true,value:result.value};
+}
