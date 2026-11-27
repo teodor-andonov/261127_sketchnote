@@ -47,3 +47,7 @@ Thickness and opacity now use five-step line sliders with adjacent precise input
 ## Folder workflow
 
 With a folder open, Create sketch writes a new image immediately and normal Save writes an untitled image into that folder without a save picker. Existing files save to their own handle; Save As always offers an explicit destination. Name collisions receive numbered suffixes. Settings controls the default transparent or solid-color raster background for new sketches. Sidebar sorting supports natural name, last modified and file size with either direction, plus a refresh button. Creation timestamps are not exposed by standard browser File objects.
+
+## Folder views
+
+The sidebar offers List (filename, date, size), Compact (filename only), and Gallery (small image previews) views. Density is independently adjustable to Dense, Normal or Spacious. View and density preferences persist. The gallery generates previews lazily near the visible region, with two concurrent decodes and a bounded in-memory cache (160 previews or 8 MiB). Preview blobs never touch disk; object URLs are released when cards leave the visible region. Refresh invalidates the preview cache, and saved file metadata automatically invalidates changed previews.
